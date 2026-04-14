@@ -79,7 +79,7 @@
                 Settings: (
                     <React.Fragment>
                         <circle cx="12" cy="12" r="3"/>
-                        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+                        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
                     </React.Fragment>
                 ),
                 Plus: (
@@ -123,11 +123,6 @@
                         <line x1="18" y1="20" x2="18" y2="10"/>
                         <line x1="12" y1="20" x2="12" y2="4"/>
                         <line x1="6" y1="20" x2="6" y2="14"/>
-                    </React.Fragment>
-                ),
-                Zap: (
-                    <React.Fragment>
-                        <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
                     </React.Fragment>
                 )
             };
@@ -350,7 +345,6 @@
             const [results, setResults] = useState([]);
             const [isProcessing, setIsProcessing] = useState(false);
             
-            // 로컬 스토리지에 정보 안전 저장
             const [gasUrl, setGasUrl] = useState(() => localStorage.getItem('omr_gas_url') || DEFAULT_GAS_URL); 
             const [userApiKey, setUserApiKey] = useState(() => localStorage.getItem('omr_api_key') || ""); 
 
@@ -493,7 +487,7 @@
                     }
                 `;
 
-                const activeApiKey = userApiKey.trim() || DEFAULT_API_KEY.trim();
+                const activeApiKey = userApiKey.trim();
 
                 const fetchWithRetry = async (retries = 2, delay = 1000) => {
                     try {
@@ -506,13 +500,8 @@
                                 prompt: systemPrompt,
                                 mimeType: imageData.mimeType,
                                 base64: imageData.data,
-                                // 🚨 [핵심 수정] 구글이 정식 명칭을 완벽하게 인식할 수 있도록 정식 풀네임 배열 적용
-                                models: [
-                                    "gemini-1.5-flash-latest",
-                                    "gemini-1.5-flash-001",
-                                    "gemini-1.5-flash-002",
-                                    "gemini-1.5-pro-latest"
-                                ]
+                                // 🚨 [핵심 수정] 엉뚱한 모델명으로 우회하지 않고, 가장 안정적인 공식 명칭 딱 1개만 직통으로 호출!
+                                models: ["gemini-1.5-flash"]
                             })
                         });
                         
@@ -537,17 +526,9 @@
                     } catch (error) {
                         if (error.message === "API_KEY_INVALID") throw new Error("API 키가 올바르지 않습니다.");
                         if (error.message === "API_KEY_EXPIRED") throw new Error("API 키가 만료되거나 삭제되었습니다.");
+                        if (error.message === "QUOTA_EXCEEDED") throw new Error("API 할당량 초과 (너무 빠른 요청)");
                         
-                        // 할당량 초과 시 10초 휴식 후 재시도
-                        if (error.message === "QUOTA_EXCEEDED" && retries > 0) {
-                            await new Promise(res => setTimeout(res, 10000));
-                            return fetchWithRetry(retries - 1, delay);
-                        }
-
-                        if (retries === 0) {
-                            if (error.message === "QUOTA_EXCEEDED") throw new Error("API 할당량 초과 (너무 빠른 요청)");
-                            throw error;
-                        }
+                        if (retries === 0) throw error;
                         
                         await new Promise(res => setTimeout(res, delay));
                         return fetchWithRetry(retries - 1, delay * 2);
@@ -632,7 +613,7 @@
                         });
                         setImages(prev => prev.map(item => item.id === img.id ? { ...item, status: 'success' } : item));
                         
-                        // 초고속 모드 (유료 전용) - 짧은 대기 시간만 부여하여 과부하 방지
+                        // 초고속 모드 - 아주 짧은 딜레이만 주어 서버 안정성 확보
                         if (i < images.length - 1) {
                             await new Promise(resolve => setTimeout(resolve, 500));
                         }

@@ -340,12 +340,19 @@
         const DEFAULT_API_KEY = ""; 
         const DEFAULT_GAS_URL = "https://script.google.com/macros/s/AKfycbyZmXOgSDqZDQRFFhsHRTvyQEq7Ire2d6g34yOwLkPOyPqE-67Ydxb9Au0zpWWsOAhs/exec"; 
 
+        // 🚨 헬퍼 함수: 파일명에서 학생 이름 추출 (공통 사용)
+        const extractStudentName = (fileName) => {
+            if (!fileName) return "이름 입력 필요";
+            const fileNameWithoutExt = fileName.replace(/\.[^/.]+$/, "");
+            const nameParts = fileNameWithoutExt.split(/[._-]/); 
+            return nameParts[nameParts.length - 1].trim() || "이름 입력 필요";
+        };
+
         const App = () => {
             const [images, setImages] = useState([]);
             const [results, setResults] = useState([]);
             const [isProcessing, setIsProcessing] = useState(false);
             
-            // 로컬 스토리지에 정보 안전 저장
             const [gasUrl, setGasUrl] = useState(() => localStorage.getItem('omr_gas_url') || DEFAULT_GAS_URL); 
             const [userApiKey, setUserApiKey] = useState(() => localStorage.getItem('omr_api_key') || ""); 
 
@@ -356,9 +363,11 @@
             const [editingResultId, setEditingResultId] = useState(null);
             const [searchTerm, setSearchTerm] = useState(""); 
             
+            // 선택된 결과 ID 상태 관리 (체크박스용)
+            const [selectedResultIds, setSelectedResultIds] = useState([]);
+            
             const [answerKeys, setAnswerKeys] = useState({
-                "양운중_1학기_중간": { school: "양운중", objective: [1, 2, 3, 4, 5, 1, 2, 3, 4, 5, 1, 2, 3, 4, 5, 1, 2, 3, 4, 5], subjective: [9, 9] },
-                "영어_기초": { school: "테스트학교", objective: [2, 4, 1, 3, 5, 2, 4, 1, 3, 5, 2, 4, 1, 3, 5, 2, 4, 1, 3, 5], subjective: [] }
+                "양운중_1학기_중간": { school: "양운중", objective: [1, 2, 3, 4, 5, 1, 2, 3, 4, 5, 1, 2, 3, 4, 5, 1, 2, 3, 4, 5], subjective: [9, 9] }
             });
             const [selectedUnit, setSelectedUnit] = useState("양운중_1학기_중간");
 
@@ -454,7 +463,8 @@
                     preview: URL.createObjectURL(file),
                     status: 'ready', 
                     errorMessage: '',
-                    fileName: file.name 
+                    fileName: file.name,
+                    hideOverlay: false // 오버레이 숨김용 속성 유지
                 }));
                 setImages(prev => [...prev, ...newImages]);
             };
@@ -501,12 +511,8 @@
                                 prompt: systemPrompt,
                                 mimeType: imageData.mimeType,
                                 base64: imageData.data,
-                                // 🚨 [핵심 수정] 구글 최신 버전 모델명 지원 및 자동 폴백 배열 적용
-                                models: [
-                                    "gemini-2.5-flash",
-                                    "gemini-1.5-flash-latest",
-                                    "gemini-1.5-flash"
-                                ]
+                                // 🚨 [핵심 수정] 에러 유발하는 대체 이름 싹 지우고, 확실한 정식 명칭만 전송
+                                models: ["gemini-1.5-flash-latest", "gemini-1.5-flash-002", "gemini-1.5-flash"]
                             })
                         });
                         
@@ -606,14 +612,12 @@
                         const subjectiveScores = Array(examData.subjective.length).fill(0);
                         const totalScore = objectiveScore;
 
-                        const fileNameWithoutExt = img.fileName.replace(/\.[^/.]+$/, "");
-                        const nameParts = fileNameWithoutExt.split(/[._-]/); 
-                        const parsedName = nameParts[nameParts.length - 1].trim() || "이름 입력 필요";
-
+                        const parsedName = extractStudentName(img.fileName);
                         const parsedSchool = examData.school || selectedUnit.split(/[ _]/)[0];
 
+                        const resultId = Math.random().toString(36).substr(2, 9);
                         newResults.push({
-                            id: img.id,
+                            id: resultId,
                             name: parsedName, 
                             school: parsedSchool,
                             info: "",
@@ -622,17 +626,24 @@
                             subjectiveScores: subjectiveScores,
                             totalScore: totalScore,
                             details: details,
-                            timestamp: new Date().toLocaleString()
+                            timestamp: new Date().toLocaleString(),
+                            isSentToSheet: false // 시트 전송 여부 상태 (유지)
                         });
-                        setImages(prev => prev.map(item => item.id === img.id ? { ...item, status: 'success' } : item));
                         
-                        // 초고속 모드 - 아주 짧은 딜레이만 주어 서버 안정성 확보
-                        if (i < images.length - 1) {
-                            await new Promise(resolve => setTimeout(resolve, 500));
-                        }
+                        // 성공 처리 및 30초 뒤 오버레이 숨김 로직 (유지)
+                        setImages(prev => prev.map(item => item.id === img.id ? { ...item, status: 'success' } : item));
+                        setTimeout(() => {
+                            setImages(prev => prev.map(item => item.id === img.id ? { ...item, hideOverlay: true } : item));
+                        }, 30000);
+                        
                     } catch (err) {
                         console.error(err);
                         setImages(prev => prev.map(item => item.id === img.id ? { ...item, status: 'error', errorMessage: err.message } : item));
+                    }
+                    
+                    // 🚨 [핵심 수정] 무조건 0.5초만 딜레이. 쓸데없는 스위치/6초 로직 완벽 삭제!
+                    if (i < images.length - 1) {
+                        await new Promise(resolve => setTimeout(resolve, 500));
                     }
                 }
                 setResults(prev => [...prev, ...newResults]);
@@ -640,18 +651,43 @@
                 if (newResults.length > 0) setView('results');
             };
 
+            // 필터링 및 선택 기능 연동
+            const filteredResults = useMemo(() => {
+                return results.filter(r => r.name.includes(searchTerm) || (r.school && r.school.includes(searchTerm)));
+            }, [results, searchTerm]);
+            
+            const unsentFilteredResults = useMemo(() => {
+                return filteredResults.filter(r => !r.isSentToSheet);
+            }, [filteredResults]);
+
+            const isAllSelected = unsentFilteredResults.length > 0 && unsentFilteredResults.every(r => selectedResultIds.includes(r.id));
+
             const saveToSheets = async () => {
                 if (!gasUrl) { setModal({ message: "설정에서 GAS URL을 먼저 입력해주세요.", type: 'error' }); setView('settings'); return; }
+                
+                const dataToSend = results.filter(r => selectedResultIds.includes(r.id));
+                if (dataToSend.length === 0) {
+                    setModal({ message: "구글 시트로 전송할 학생의 체크박스를 선택해주세요.", type: 'error' });
+                    return;
+                }
+
                 setIsProcessing(true);
                 try {
                     await fetch(gasUrl, { 
                         method: 'POST', 
                         headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-                        body: JSON.stringify({ action: 'save', data: results }) 
+                        body: JSON.stringify({ action: 'save', data: dataToSend }) 
                     });
-                    setModal({ message: "구글 시트 전송이 완료되었습니다.", type: 'success' });
-                } catch (error) { setModal({ message: "저장 중 오류가 발생했습니다.", type: 'error' }); }
-                finally { setIsProcessing(false); }
+                    
+                    setResults(prev => prev.map(r => selectedResultIds.includes(r.id) ? { ...r, isSentToSheet: true } : r));
+                    setSelectedResultIds([]);
+                    
+                    setModal({ message: `${dataToSend.length}명의 데이터가 구글 시트에 전송되었습니다.`, type: 'success' });
+                } catch (error) { 
+                    setModal({ message: "저장 중 오류가 발생했습니다.", type: 'error' }); 
+                } finally { 
+                    setIsProcessing(false); 
+                }
             };
 
             const uniqueStudents = useMemo(() => Array.from(new Set(results.map(r => r.name))).filter(Boolean), [results]);
@@ -780,24 +816,27 @@
                                                 <div key={img.id} className="relative rounded-2xl overflow-hidden border-2 border-slate-50 shadow-md h-40 group">
                                                     <img src={img.preview} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" />
                                                     
-                                                    <div className="absolute inset-0 bg-slate-900/40 flex items-center justify-center backdrop-blur-[1px]">
-                                                        {img.status === 'success' ? (
-                                                            <div className="text-emerald-400 font-black text-xs bg-slate-900/80 px-3 py-2 rounded-full flex items-center gap-1 shadow-xl border border-emerald-400/20"><Icon name="CheckCircle" size={14}/> 판독 완료</div>
-                                                        ) : img.status === 'error' ? (
-                                                            <div className="flex flex-col items-center gap-1.5 w-full px-2">
-                                                                <div className="text-red-400 font-black text-xs bg-slate-900/80 px-3 py-1.5 rounded-full flex items-center justify-center gap-1 shadow-xl border border-red-400/20 whitespace-nowrap">
-                                                                    <Icon name="AlertCircle" size={14}/> 판독 오류
+                                                    {/* 🚨 오버레이 숨김 로직 및 이름 표시 유지 */}
+                                                    {!img.hideOverlay && (
+                                                        <div className="absolute inset-0 bg-slate-900/40 flex items-center justify-center backdrop-blur-[1px] transition-opacity duration-1000">
+                                                            {img.status === 'success' ? (
+                                                                <div className="text-emerald-400 font-black text-xs bg-slate-900/80 px-3 py-2 rounded-full flex items-center gap-1 shadow-xl border border-emerald-400/20"><Icon name="CheckCircle" size={14}/> 판독 완료</div>
+                                                            ) : img.status === 'error' ? (
+                                                                <div className="flex flex-col items-center gap-1.5 w-full px-2">
+                                                                    <div className="text-red-400 font-black text-xs bg-slate-900/80 px-3 py-1.5 rounded-full flex items-center justify-center gap-1 shadow-xl border border-red-400/20 whitespace-nowrap">
+                                                                        <Icon name="AlertCircle" size={14}/> 판독 오류
+                                                                    </div>
+                                                                    <div className="text-[9px] text-white/90 bg-red-950/80 px-2 py-1 rounded-lg w-full text-center truncate shadow-sm border border-red-800/50" title={img.errorMessage}>
+                                                                        {img.errorMessage || "분석 실패"}
+                                                                    </div>
                                                                 </div>
-                                                                <div className="text-[9px] text-white/90 bg-red-950/80 px-2 py-1 rounded-lg w-full text-center truncate shadow-sm border border-red-800/50" title={img.errorMessage}>
-                                                                    {img.errorMessage || "분석 실패"}
-                                                                </div>
-                                                            </div>
-                                                        ) : img.status === 'processing' ? (
-                                                            <div className="flex flex-col items-center gap-2"><Icon name="Loader2" className="text-white" size={24}/><span className="text-[10px] text-white font-bold animate-pulse">분석 중...</span></div>
-                                                        ) : (
-                                                            <div className="text-white font-black text-xs bg-slate-900/80 px-3 py-2 rounded-full flex items-center gap-1 shadow-xl border border-white/20">준비됨</div>
-                                                        )}
-                                                    </div>
+                                                            ) : img.status === 'processing' ? (
+                                                                <div className="flex flex-col items-center gap-2"><Icon name="Loader2" className="text-white" size={24}/><span className="text-[10px] text-white font-bold animate-pulse">분석 중...</span></div>
+                                                            ) : (
+                                                                <div className="text-white font-black text-xs bg-slate-900/80 px-3 py-2 rounded-full flex items-center gap-1 shadow-xl border border-white/20">{extractStudentName(img.fileName)}</div>
+                                                            )}
+                                                        </div>
+                                                    )}
                                                     
                                                     <button onClick={() => setImages(prev => prev.filter(i => i.id !== img.id))} className="absolute top-2 right-2 bg-white/90 hover:bg-white p-2 rounded-full shadow-lg text-slate-600 hover:text-red-500 transition-all opacity-0 group-hover:opacity-100 scale-90 group-hover:scale-100">
                                                         <Icon name="X" size={14}/>
@@ -808,6 +847,7 @@
                                     )}
 
                                     <div className="pt-4">
+                                        {/* 🚨 원치 않으셨던 모드 스위치 UI 완전히 삭제! 버튼만 남김 */}
                                         <button 
                                             onClick={processAll} 
                                             disabled={isProcessing || images.length === 0} 
@@ -838,9 +878,14 @@
                                                 onChange={(e) => setSearchTerm(e.target.value)}
                                                 className="border-2 border-slate-200 px-4 py-2.5 rounded-xl text-sm font-bold outline-none focus:border-indigo-500 w-full sm:w-48 bg-white shadow-sm"
                                             />
-                                            <button onClick={() => { if(confirm("모든 결과를 초기화하시겠습니까?")) setResults([]); }} className="text-slate-400 hover:text-red-500 text-xs font-black transition-colors px-2">초기화</button>
-                                            <button onClick={saveToSheets} disabled={results.length === 0} className="bg-emerald-600 text-white px-6 py-3 rounded-xl text-sm font-black shadow-xl shadow-emerald-100 hover:bg-emerald-700 transition-all flex items-center justify-center gap-2 disabled:bg-slate-200 disabled:shadow-none">
-                                                <Icon name="Save" size={18}/> 구글 시트 전송
+                                            <button onClick={() => { if(confirm("모든 결과를 초기화하시겠습니까?")) { setResults([]); setSelectedResultIds([]); } }} className="text-slate-400 hover:text-red-500 text-xs font-black transition-colors px-2">초기화</button>
+                                            <button 
+                                                onClick={saveToSheets} 
+                                                disabled={selectedResultIds.length === 0 || isProcessing} 
+                                                className="bg-emerald-600 text-white px-6 py-3 rounded-xl text-sm font-black shadow-xl shadow-emerald-100 hover:bg-emerald-700 transition-all flex items-center justify-center gap-2 disabled:bg-slate-200 disabled:shadow-none"
+                                            >
+                                                {isProcessing ? <Icon name="Loader2" size={18}/> : <Icon name="Save" size={18}/>} 
+                                                선택 항목 전송 ({selectedResultIds.length})
                                             </button>
                                         </div>
                                     </div>
@@ -850,7 +895,24 @@
                                             <table className="w-full text-left">
                                                 <thead className="bg-slate-50/50 border-b border-slate-100">
                                                     <tr>
-                                                        <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] w-1/3">학생 이름</th>
+                                                        {/* 🚨 전체 선택 체크박스 유지 */}
+                                                        <th className="p-6 text-center w-12">
+                                                            <input 
+                                                                type="checkbox" 
+                                                                className="w-5 h-5 rounded-md border-gray-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer shadow-sm"
+                                                                checked={isAllSelected && unsentFilteredResults.length > 0}
+                                                                onChange={(e) => {
+                                                                    if (e.target.checked) {
+                                                                        const newIds = new Set([...selectedResultIds, ...unsentFilteredResults.map(r => r.id)]);
+                                                                        setSelectedResultIds(Array.from(newIds));
+                                                                    } else {
+                                                                        const filteredIds = unsentFilteredResults.map(r => r.id);
+                                                                        setSelectedResultIds(prev => prev.filter(id => !filteredIds.includes(id)));
+                                                                    }
+                                                                }}
+                                                            />
+                                                        </th>
+                                                        <th className="p-6 pl-2 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] w-1/3">학생 이름</th>
                                                         <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">학교 / 시험지명</th>
                                                         <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] text-center">객관식</th>
                                                         <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] text-center">주관식</th>
@@ -859,10 +921,10 @@
                                                     </tr>
                                                 </thead>
                                                 <tbody className="divide-y divide-slate-50">
-                                                    {results.filter(r => r.name.includes(searchTerm) || (r.school && r.school.includes(searchTerm))).length === 0 ? (
-                                                        <tr><td colSpan="6" className="p-24 text-center text-slate-300 italic font-bold">검색된 학생 데이터가 없거나 아직 채점되지 않았습니다.</td></tr>
+                                                    {filteredResults.length === 0 ? (
+                                                        <tr><td colSpan="7" className="p-24 text-center text-slate-300 italic font-bold">검색된 학생 데이터가 없거나 아직 채점되지 않았습니다.</td></tr>
                                                     ) : (
-                                                        results.filter(r => r.name.includes(searchTerm) || (r.school && r.school.includes(searchTerm))).map(r => {
+                                                        filteredResults.map(r => {
                                                             const examData = getExamData(r.unit);
                                                             const hasSubjective = examData.subjective && examData.subjective.length > 0;
                                                             const subjectiveSum = r.subjectiveScores ? r.subjectiveScores.reduce((a,b)=>a+b, 0) : 0;
@@ -870,8 +932,32 @@
 
                                                             return (
                                                             <tr key={r.id} className="hover:bg-indigo-50/30 transition-colors">
-                                                                <td className="p-6">
-                                                                    <div className={`font-black text-xl ${r.name === '이름 입력 필요' ? 'text-red-400' : 'text-slate-800'}`}>{r.name}</div>
+                                                                {/* 🚨 개별 선택 체크박스 및 전송 상태 표시 유지 */}
+                                                                <td className="p-6 text-center">
+                                                                    {r.isSentToSheet ? (
+                                                                        <span className="inline-flex items-center justify-center bg-emerald-50 text-emerald-500 rounded-lg w-7 h-7 shadow-sm border border-emerald-100" title="전송 완료">
+                                                                            <Icon name="CheckCircle" size={16}/>
+                                                                        </span>
+                                                                    ) : (
+                                                                        <input 
+                                                                            type="checkbox" 
+                                                                            className="w-5 h-5 rounded-md border-gray-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer shadow-sm"
+                                                                            checked={selectedResultIds.includes(r.id)}
+                                                                            onChange={(e) => {
+                                                                                if (e.target.checked) {
+                                                                                    setSelectedResultIds(prev => [...prev, r.id]);
+                                                                                } else {
+                                                                                    setSelectedResultIds(prev => prev.filter(id => id !== r.id));
+                                                                                }
+                                                                            }}
+                                                                        />
+                                                                    )}
+                                                                </td>
+                                                                <td className="p-6 pl-2">
+                                                                    <div className={`font-black text-xl ${r.name === '이름 입력 필요' ? 'text-red-400' : 'text-slate-800'}`}>
+                                                                        {r.name}
+                                                                        {r.isSentToSheet && <span className="ml-2 text-[10px] font-bold text-emerald-500 bg-emerald-50 px-2 py-0.5 rounded-full uppercase tracking-widest align-middle">전송됨</span>}
+                                                                    </div>
                                                                 </td>
                                                                 <td className="p-6">
                                                                     <div className="flex flex-col gap-1 items-start">

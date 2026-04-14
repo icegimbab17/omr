@@ -4,13 +4,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>OMR 채점 시스템 Pro</title>
-    <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- React & Babel CDN -->
     <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-    <!-- Chart.js CDN (그래프 시각화) -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Pretendard:wght@400;600;700;900&display=swap');
@@ -227,7 +224,6 @@
             );
         };
 
-        // 🚨 원장님의 새로운 API 키 하드코딩 🚨
         const API_KEY = "AIzaSyDad_cS3iKrYU5vvMmVKWWKJ6-q0n78_Ac"; 
 
         const App = () => {
@@ -235,7 +231,6 @@
             const [results, setResults] = useState([]);
             const [isProcessing, setIsProcessing] = useState(false);
             
-            // 🚨 원장님의 GAS 프록시 서버 URL 하드코딩 🚨
             const [gasUrl, setGasUrl] = useState("https://script.google.com/macros/s/AKfycbxxMzMfcqcT-kY5w1c_O_uqNokjMsoebUG_Ngjyeu7CgArZAue6S23Z38F7vm7kLkw/exec"); 
             const [userApiKey, setUserApiKey] = useState(API_KEY); 
             

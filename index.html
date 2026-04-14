@@ -79,7 +79,7 @@
                 Settings: (
                     <React.Fragment>
                         <circle cx="12" cy="12" r="3"/>
-                        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+                        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
                     </React.Fragment>
                 ),
                 Plus: (
@@ -345,6 +345,7 @@
             const [results, setResults] = useState([]);
             const [isProcessing, setIsProcessing] = useState(false);
             
+            // 로컬 스토리지에 정보 안전 저장
             const [gasUrl, setGasUrl] = useState(() => localStorage.getItem('omr_gas_url') || DEFAULT_GAS_URL); 
             const [userApiKey, setUserApiKey] = useState(() => localStorage.getItem('omr_api_key') || ""); 
 
@@ -500,8 +501,12 @@
                                 prompt: systemPrompt,
                                 mimeType: imageData.mimeType,
                                 base64: imageData.data,
-                                // 🚨 [핵심 수정] 엉뚱한 모델명으로 우회하지 않고, 가장 안정적인 공식 명칭 딱 1개만 직통으로 호출!
-                                models: ["gemini-1.5-flash"]
+                                // 🚨 [핵심 수정] 구글 최신 버전 모델명 지원 및 자동 폴백 배열 적용
+                                models: [
+                                    "gemini-2.5-flash",
+                                    "gemini-1.5-flash-latest",
+                                    "gemini-1.5-flash"
+                                ]
                             })
                         });
                         
@@ -526,9 +531,17 @@
                     } catch (error) {
                         if (error.message === "API_KEY_INVALID") throw new Error("API 키가 올바르지 않습니다.");
                         if (error.message === "API_KEY_EXPIRED") throw new Error("API 키가 만료되거나 삭제되었습니다.");
-                        if (error.message === "QUOTA_EXCEEDED") throw new Error("API 할당량 초과 (너무 빠른 요청)");
                         
-                        if (retries === 0) throw error;
+                        // 할당량 초과 시 10초 휴식 후 재시도
+                        if (error.message === "QUOTA_EXCEEDED" && retries > 0) {
+                            await new Promise(res => setTimeout(res, 10000));
+                            return fetchWithRetry(retries - 1, delay);
+                        }
+
+                        if (retries === 0) {
+                            if (error.message === "QUOTA_EXCEEDED") throw new Error("API 할당량 초과 (너무 빠른 요청)");
+                            throw error;
+                        }
                         
                         await new Promise(res => setTimeout(res, delay));
                         return fetchWithRetry(retries - 1, delay * 2);

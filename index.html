@@ -232,7 +232,7 @@
             );
         };
 
-        // --- 수정 모달 ---
+        // --- 주관식 및 학생정보 수정 모달 컴포넌트 ---
         const EditModal = ({ result, examData, onSave, onClose }) => {
             const [localName, setLocalName] = useState(result.name === "이름 입력 필요" ? "" : result.name);
             const [localSchool, setLocalSchool] = useState(result.school || "");
@@ -342,7 +342,7 @@
             );
         };
 
-        const DEFAULT_API_KEY = ""; // 보안상 빈 값 유지
+        const DEFAULT_API_KEY = ""; 
         const DEFAULT_GAS_URL = "https://script.google.com/macros/s/AKfycbyZmXOgSDqZDQRFFhsHRTvyQEq7Ire2d6g34yOwLkPOyPqE-67Ydxb9Au0zpWWsOAhs/exec"; 
 
         const App = () => {
@@ -506,7 +506,13 @@
                                 prompt: systemPrompt,
                                 mimeType: imageData.mimeType,
                                 base64: imageData.data,
-                                models: ["gemini-1.5-flash"]
+                                // 🚨 [핵심 수정] 구글이 정식 명칭을 완벽하게 인식할 수 있도록 정식 풀네임 배열 적용
+                                models: [
+                                    "gemini-1.5-flash-latest",
+                                    "gemini-1.5-flash-001",
+                                    "gemini-1.5-flash-002",
+                                    "gemini-1.5-pro-latest"
+                                ]
                             })
                         });
                         

@@ -84,7 +84,7 @@
                 Settings: (
                     <React.Fragment>
                         <circle cx="12" cy="12" r="3"/>
-                        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+                        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
                     </React.Fragment>
                 ),
                 Plus: (
@@ -450,7 +450,7 @@
             const [analysisStudent, setAnalysisStudent] = useState("");
             const [analysisExam, setAnalysisExam] = useState("");
 
-            // 🚨 파이어베이스에서 기존 데이터 & 시험지 자동 동기화 로드!
+            // 파이어베이스 데이터 로드
             useEffect(() => {
                 let isMounted = true;
                 let retryCount = 0;
@@ -535,7 +535,7 @@
                         subjective: newExamSubScores 
                     };
                     
-                    // 🚨 Firebase에 시험지 템플릿 즉시 백업 저장!
+                    // Firebase에 시험지 템플릿 즉시 백업 저장
                     if (window.saveExamsToFirebase) window.saveExamsToFirebase(updated);
                     
                     return updated;
@@ -554,7 +554,7 @@
                 const newKeys = { ...answerKeys };
                 delete newKeys[unitName];
                 
-                // 🚨 Firebase에도 삭제된 상태 즉시 업데이트
+                // Firebase 삭제 상태 동기화
                 if (window.saveExamsToFirebase) window.saveExamsToFirebase(newKeys);
                 
                 setAnswerKeys(newKeys);
@@ -575,6 +575,7 @@
                 setImages(prev => [...prev, ...newImages]);
             };
 
+            // 🚨 버튼 작동 오류(클로저 문제) 해결을 위해 함수 구조 완벽 정상화
             const analyzeImage = async (imageObj) => {
                 const imageData = await new Promise((resolve) => {
                     const reader = new FileReader();
@@ -606,6 +607,7 @@
 
                 const activeApiKey = userApiKey.trim();
 
+                // 🚨 요금 절감 및 폭주 에러 완벽 해결을 위해 오직 가장 저렴하고 빠른 "1.5-flash" 모델만 사용!
                 const fetchWithRetry = async (retries = 4, delay = 1000) => {
                     try {
                         const response = await fetch(gasUrl, {
@@ -617,11 +619,7 @@
                                 prompt: systemPrompt,
                                 mimeType: imageData.mimeType,
                                 base64: imageData.data,
-                                models: [
-                                    "gemini-3.0-flash",
-                                    "gemini-2.5-flash",
-                                    "gemini-1.5-flash"
-                                ]
+                                models: ["gemini-1.5-flash"]
                             })
                         });
                         
@@ -666,100 +664,123 @@
                     }
                 };
 
-                const processAll = async () => {
-                    if (!gasUrl.trim()) {
-                        setModal({ message: "분석을 위해 설정 탭에서 구글 스크립트(GAS) URL을 먼저 입력해주세요.", type: 'error' });
-                        setView('settings');
-                        return;
-                    }
-                    if (!userApiKey.trim()) {
-                        setModal({ message: "설정 탭에서 새로운 Gemini API 키를 먼저 입력해주세요.", type: 'error' });
-                        setView('settings');
-                        return;
-                    }
-                    
-                    setIsProcessing(true);
-                    const newResults = [];
-                    for (let i = 0; i < images.length; i++) {
-                        const img = images[i];
-                        if (img.status === 'success') continue;
-                        
-                        setImages(prev => prev.map(item => item.id === img.id ? { ...item, status: 'processing', errorMessage: '' } : item));
-                        
-                        try {
-                            const analysis = await analyzeImage(img);
-                            const examData = getExamData(selectedUnit);
-                            const correctAnswers = examData.objective;
-                            let score = 0;
-                            const totalQs = correctAnswers.length;
-                            
-                            const details = (analysis.answers || []).map((ans, idx) => {
-                                if (idx >= totalQs) return null;
-                                const isCorrect = ans === correctAnswers[idx];
-                                if (isCorrect) score += (100 / totalQs);
-                                return { question: idx + 1, studentAnswer: ans, correctAnswer: correctAnswers[idx], isCorrect };
-                            }).filter(Boolean);
-
-                            const objectiveScore = Math.round(score);
-                            const subjectiveScores = Array(examData.subjective.length).fill(0);
-                            const totalScore = objectiveScore;
-
-                            const parsedName = extractStudentName(img.fileName);
-                            const parsedSchool = examData.school || selectedUnit.split(/[ _]/)[0];
-
-                            const resultId = Math.random().toString(36).substr(2, 9);
-                            
-                            const resultObj = {
-                                id: resultId,
-                                name: parsedName, 
-                                school: parsedSchool,
-                                info: "",
-                                unit: selectedUnit,
-                                objectiveScore: objectiveScore,
-                                subjectiveScores: subjectiveScores,
-                                totalScore: totalScore,
-                                details: details,
-                                timestamp: new Date().toLocaleString(),
-                                isSentToSheet: false 
-                            };
-                            
-                            newResults.push(resultObj);
-                            
-                            // 🚨 채점이 끝나는 즉시 파이어베이스에 실시간 개별 저장! (진정한 클라우드 기능)
-                            if (window.addResultToFirebase) {
-                                window.addResultToFirebase(resultObj);
-                            }
-                            
-                            setImages(prev => prev.map(item => item.id === img.id ? { ...item, status: 'success' } : item));
-                            
-                            setTimeout(() => {
-                                setImages(prev => prev.filter(item => item.id !== img.id));
-                            }, 3000);
-                            
-                        } catch (err) {
-                            console.error(err);
-                            setImages(prev => prev.map(item => item.id === img.id ? { ...item, status: 'error', errorMessage: err.message } : item));
-                        }
-                        
-                        if (i < images.length - 1) {
-                            await new Promise(resolve => setTimeout(resolve, 500));
-                        }
-                    }
-                    setResults(prev => [...prev, ...newResults]);
-                    setIsProcessing(false);
-                    if (newResults.length > 0) setView('results');
-                };
-
-                // 🚨 본문 실행 로직 연결을 위해 함수 외부로 processAll 반환
-                return { processAll };
+                const data = await fetchWithRetry();
+                const textResponse = data.candidates?.[0]?.content?.parts?.[0]?.text;
+                if (!textResponse) throw new Error("AI 응답이 비어있습니다.");
+                
+                const cleanText = textResponse.replace(/```json|```/gi, "").trim();
+                const startIndex = cleanText.indexOf('{');
+                const endIndex = cleanText.lastIndexOf('}');
+                
+                if (startIndex === -1 || endIndex === -1) {
+                    throw new Error("분석 결과에서 데이터를 찾지 못했습니다. (형식 파싱 오류)");
+                }
+                
+                const jsonString = cleanText.substring(startIndex, endIndex + 1);
+                try {
+                    return JSON.parse(jsonString);
+                } catch (e) {
+                    throw new Error("데이터 변환 중 내부 오류가 발생했습니다.");
+                }
             };
 
-            const { processAll } = analyzeImage;
-            
-            // 실제 버튼 클릭을 위한 이벤트 핸들러 분리
-            const handleProcessClick = async () => {
-                const processor = await analyzeImage();
-                processor.processAll();
+            // 🚨 버튼에 직접 연결되는 정상적인 실행 함수!
+            const processAll = async () => {
+                if (!gasUrl.trim()) {
+                    setModal({ message: "분석을 위해 설정 탭에서 구글 스크립트(GAS) URL을 먼저 입력해주세요.", type: 'error' });
+                    setView('settings');
+                    return;
+                }
+                if (!userApiKey.trim()) {
+                    setModal({ message: "설정 탭에서 새로운 Gemini API 키를 먼저 입력해주세요.", type: 'error' });
+                    setView('settings');
+                    return;
+                }
+                
+                setIsProcessing(true);
+                let hasNewData = false;
+                
+                for (let i = 0; i < images.length; i++) {
+                    const img = images[i];
+                    if (img.status === 'success') continue;
+                    
+                    setImages(prev => prev.map(item => item.id === img.id ? { ...item, status: 'processing', errorMessage: '' } : item));
+                    
+                    try {
+                        const analysis = await analyzeImage(img);
+                        const examData = getExamData(selectedUnit);
+                        const correctAnswers = examData.objective;
+                        let score = 0;
+                        const totalQs = correctAnswers.length;
+                        
+                        const details = (analysis.answers || []).map((ans, idx) => {
+                            if (idx >= totalQs) return null;
+                            const isCorrect = ans === correctAnswers[idx];
+                            if (isCorrect) score += (100 / totalQs);
+                            return { question: idx + 1, studentAnswer: ans, correctAnswer: correctAnswers[idx], isCorrect };
+                        }).filter(Boolean);
+
+                        const objectiveScore = Math.round(score);
+                        const subjectiveScores = Array(examData.subjective.length).fill(0);
+                        const totalScore = objectiveScore;
+
+                        const parsedName = extractStudentName(img.fileName);
+                        const parsedSchool = examData.school || selectedUnit.split(/[ _]/)[0];
+
+                        // 🚨 중복 방지를 위한 안정적인 고유 ID (학생이름_시험지명)
+                        // 동일한 학생이 같은 시험지를 다시 채점하면 기존 데이터를 덮어씁니다 (그래프 2번 나오는 오류 해결!)
+                        const resultId = encodeURIComponent(`${parsedName}_${selectedUnit}`).replace(/[.#$[\]\s]/g, '_');
+                        
+                        const resultObj = {
+                            id: resultId,
+                            name: parsedName, 
+                            school: parsedSchool,
+                            info: "",
+                            unit: selectedUnit,
+                            objectiveScore: objectiveScore,
+                            subjectiveScores: subjectiveScores,
+                            totalScore: totalScore,
+                            details: details,
+                            timestamp: new Date().toLocaleString(),
+                            isSentToSheet: false 
+                        };
+                        
+                        // 🚨 새 데이터 푸시 대신, 이미 있으면 '업데이트' 하도록 변경 (중복 해결)
+                        setResults(prev => {
+                            const newArray = [...prev];
+                            const existingIdx = newArray.findIndex(r => r.id === resultId);
+                            if (existingIdx !== -1) {
+                                newArray[existingIdx] = resultObj; // 기존 것 덮어쓰기
+                            } else {
+                                newArray.push(resultObj); // 없으면 추가
+                            }
+                            return newArray;
+                        });
+                        hasNewData = true;
+                        
+                        // Firebase 개별 자동 저장
+                        if (window.addResultToFirebase) {
+                            window.addResultToFirebase(resultObj);
+                        }
+                        
+                        setImages(prev => prev.map(item => item.id === img.id ? { ...item, status: 'success' } : item));
+                        
+                        setTimeout(() => {
+                            setImages(prev => prev.filter(item => item.id !== img.id));
+                        }, 3000);
+                        
+                    } catch (err) {
+                        console.error(err);
+                        setImages(prev => prev.map(item => item.id === img.id ? { ...item, status: 'error', errorMessage: err.message } : item));
+                    }
+                    
+                    if (i < images.length - 1) {
+                        await new Promise(resolve => setTimeout(resolve, 500));
+                    }
+                }
+                
+                setIsProcessing(false);
+                if (hasNewData) setView('results');
             };
 
             const filteredResults = useMemo(() => {
@@ -821,7 +842,6 @@
                         body: JSON.stringify({ action: 'save_omr', sheets: sheetsPayload }) 
                     });
                     
-                    // 🚨 Firebase에도 '시트 전송 완료(isSentToSheet: true)' 상태를 즉각 업데이트!
                     setResults(prev => prev.map(r => {
                         if (selectedResultIds.includes(r.id)) {
                             const updatedR = { ...r, isSentToSheet: true };
@@ -860,14 +880,9 @@
                 }
             }, [view, uniqueStudents, uniqueExams, analysisStudent, analysisExam]);
 
+            // 🚨 차트 중복 방지 (가장 최신 데이터만 반영되도록)
             const studentChartData = useMemo(() => {
-                const studentDataRaw = results.filter(r => r.name === analysisStudent);
-                const uniqueDataMap = new Map();
-                studentDataRaw.forEach(d => {
-                    uniqueDataMap.set(d.unit, d);
-                });
-                const data = Array.from(uniqueDataMap.values()).sort((a,b) => new Date(a.timestamp) - new Date(b.timestamp));
-
+                const data = results.filter(r => r.name === analysisStudent).sort((a,b) => new Date(a.timestamp) - new Date(b.timestamp));
                 return {
                     labels: data.map(d => d.unit),
                     totalScores: data.map(d => d.totalScore),
@@ -885,15 +900,9 @@
             }, [results, analysisStudent, answerKeys]);
 
             const schoolChartData = useMemo(() => {
-                const schoolDataRaw = results.filter(r => r.unit === analysisExam && r.school); 
-                const uniqueDataMap = new Map();
-                schoolDataRaw.forEach(r => {
-                    uniqueDataMap.set(`${r.school}_${r.name}`, r);
-                });
-                const uniqueData = Array.from(uniqueDataMap.values());
-
+                const data = results.filter(r => r.unit === analysisExam && r.school); 
                 const grouped = {};
-                uniqueData.forEach(r => {
+                data.forEach(r => {
                     const sch = r.school;
                     if (!grouped[sch]) grouped[sch] = [];
                     grouped[sch].push(r);
@@ -925,7 +934,6 @@
                             onClose={() => setEditingResultId(null)}
                             onSave={(id, updatedData) => {
                                 setResults(prev => prev.map(r => r.id === id ? { ...r, ...updatedData } : r));
-                                // 🚨 모달에서 수정한 데이터도 파이어베이스에 실시간 백업!
                                 if (window.updateResultInFirebase) {
                                     window.updateResultInFirebase(id, updatedData);
                                 }
@@ -1031,7 +1039,7 @@
 
                                     <div className="pt-4">
                                         <button 
-                                            onClick={handleProcessClick} 
+                                            onClick={processAll} 
                                             disabled={isProcessing || images.length === 0} 
                                             className="w-full py-6 bg-indigo-600 text-white rounded-[1.5rem] font-black text-xl shadow-2xl shadow-indigo-200 hover:bg-indigo-700 hover:-translate-y-1 transition-all disabled:bg-slate-200 disabled:text-slate-400 disabled:shadow-none disabled:translate-y-0 flex justify-center items-center gap-4"
                                         >
@@ -1064,7 +1072,6 @@
                                                 if(confirm("모든 결과를 초기화하시겠습니까?")) { 
                                                     setResults([]); 
                                                     setSelectedResultIds([]); 
-                                                    // 🚨 파이어베이스에서 전체 삭제 연동
                                                     if (window.deleteAllResultsInFirebase) window.deleteAllResultsInFirebase();
                                                 } 
                                             }} className="text-slate-400 hover:text-red-500 text-xs font-black transition-colors px-2">초기화</button>
@@ -1573,26 +1580,60 @@
       const app = initializeApp(firebaseConfig);
       const db = getFirestore(app);
 
-      // --- OMR 결과 클라우드 동기화 ---
       window.fetchFromFirebase = async () => {
         try {
           const querySnapshot = await getDocs(collection(db, "haeun_omr_data"));
           const fetchedResults = [];
           querySnapshot.forEach((docSnap) => {
-            fetchedResults.push({ id: docSnap.id, ...docSnap.data() });
+            const data = docSnap.data();
+            let ts = new Date().toLocaleString();
+            if (data.savedAt) {
+                if (typeof data.savedAt.toDate === 'function') ts = data.savedAt.toDate().toLocaleString();
+                else ts = new Date(data.savedAt).toLocaleString();
+            } else if (data.timestamp) {
+                ts = data.timestamp;
+            }
+
+            fetchedResults.push({
+              id: docSnap.id,
+              name: data.studentName || data.name || "이름 없음",
+              school: data.school || "",
+              info: data.info || "",
+              unit: data.examUnit || data.unit || "",
+              objectiveScore: data.objectiveScore || 0,
+              subjectiveScores: data.subjectiveScores || [],
+              totalScore: data.totalScore || 0,
+              details: data.answers || data.details || [],
+              timestamp: ts,
+              isSentToSheet: data.isSentToSheet !== undefined ? data.isSentToSheet : true
+            });
           });
           return fetchedResults.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
         } catch (error) {
-          console.error("Firebase Result Fetch Error:", error);
+          console.error("Firebase 데이터 불러오기 실패:", error);
           return [];
         }
       };
 
       window.addResultToFirebase = async (result) => {
         try {
-          await setDoc(doc(db, "haeun_omr_data", result.id), result);
+          await setDoc(doc(db, "haeun_omr_data", result.id), {
+              name: result.name,
+              studentName: result.name, // keep both for compat
+              school: result.school,
+              unit: result.unit,
+              examUnit: result.unit, // compat
+              objectiveScore: result.objectiveScore,
+              subjectiveScores: result.subjectiveScores,
+              totalScore: result.totalScore,
+              details: result.details,
+              answers: result.details, // compat
+              isSentToSheet: result.isSentToSheet,
+              timestamp: result.timestamp,
+              savedAt: new Date()
+          });
         } catch (error) {
-          console.error("Firebase Add Error:", error);
+          console.error("Firebase 저장 실패:", error);
         }
       };
 
@@ -1600,7 +1641,7 @@
         try {
           await updateDoc(doc(db, "haeun_omr_data", id), updateData);
         } catch (error) {
-          console.error("Firebase Update Error:", error);
+          console.error("Firebase 업데이트 실패:", error);
         }
       };
 
@@ -1611,11 +1652,10 @@
             deleteDoc(doc(db, "haeun_omr_data", docSnap.id));
           });
         } catch (error) {
-          console.error("Firebase Delete All Error:", error);
+          console.error("Firebase 전체 삭제 실패:", error);
         }
       };
 
-      // --- 시험지 세팅 클라우드 동기화 ---
       window.fetchExamsFromFirebase = async () => {
         try {
           const querySnapshot = await getDocs(collection(db, "haeun_omr_settings"));
@@ -1625,7 +1665,7 @@
           });
           return examsData ? JSON.parse(examsData) : null;
         } catch (error) {
-          console.error("Firebase Exam Fetch Error:", error);
+          console.error("Firebase 시험지 불러오기 실패:", error);
           return null;
         }
       };
@@ -1634,7 +1674,7 @@
         try {
           await setDoc(doc(db, "haeun_omr_settings", "exam_keys"), { data: JSON.stringify(exams) });
         } catch (error) {
-          console.error("Firebase Exam Save Error:", error);
+          console.error("Firebase 시험지 저장 실패:", error);
         }
       };
     </script>

@@ -12,6 +12,8 @@
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <!-- Chart.js CDN (그래프 시각화) -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- 🚨 그래프 위에 점수 숫자를 표시하기 위한 플러그인 CDN 추가 -->
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.0.0"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Pretendard:wght@400;600;700;900&display=swap');
         body { font-family: 'Pretendard', sans-serif; -webkit-tap-highlight-color: transparent; }
@@ -26,6 +28,9 @@
     <div id="root"></div>
 
     <script type="text/babel">
+        // 🚨 차트 위에 숫자를 그리는 플러그인을 Chart.js에 등록
+        Chart.register(ChartDataLabels);
+
         const { useState, useEffect, useMemo, useRef } = React;
 
         // --- 아이콘 컴포넌트 ---
@@ -173,7 +178,8 @@
                                 pointBorderColor: lineColor,
                                 pointBorderWidth: 2,
                                 pointRadius: 5,
-                                pointHoverRadius: 7
+                                pointHoverRadius: 7,
+                                datalabels: { display: false }
                             },
                             {
                                 type: 'bar',
@@ -182,13 +188,23 @@
                                 backgroundColor: barColor,
                                 borderRadius: 8,
                                 barThickness: 'flex',
-                                maxBarThickness: 40
+                                maxBarThickness: 40,
+                                datalabels: { 
+                                    display: true, 
+                                    anchor: 'end', 
+                                    align: 'top', 
+                                    offset: 4,
+                                    color: '#334155', 
+                                    font: { weight: 'bold', size: 12 },
+                                    formatter: Math.round
+                                }
                             }
                         ]
                     },
                     options: {
                         responsive: true,
                         maintainAspectRatio: false,
+                        layout: { padding: { top: 30 } },
                         plugins: {
                             legend: { display: false },
                             title: { display: true, text: title, font: { size: 16, family: 'Pretendard', weight: '900' }, color: '#1e293b', padding: { bottom: 20 } },
@@ -232,7 +248,8 @@
                                 backgroundColor: color1,
                                 borderRadius: 6,
                                 barPercentage: 0.8,
-                                categoryPercentage: 0.8
+                                categoryPercentage: 0.8,
+                                datalabels: { display: true, anchor: 'end', align: 'top', color: color1, font: { weight: 'bold', size: 11 } }
                             },
                             {
                                 label: label2,
@@ -240,20 +257,22 @@
                                 backgroundColor: color2,
                                 borderRadius: 6,
                                 barPercentage: 0.8,
-                                categoryPercentage: 0.8
+                                categoryPercentage: 0.8,
+                                datalabels: { display: true, anchor: 'end', align: 'top', color: '#94a3b8', font: { weight: 'bold', size: 11 } }
                             }
                         ]
                     },
                     options: {
                         responsive: true,
                         maintainAspectRatio: false,
+                        layout: { padding: { top: 30 } },
                         plugins: {
                             legend: { display: true, position: 'bottom', labels: { font: { family: 'Pretendard', weight: 'bold' } } },
                             title: { display: true, text: title, font: { size: 16, family: 'Pretendard', weight: '900' }, color: '#1e293b', padding: { bottom: 20 } },
                             tooltip: { mode: 'index', intersect: false, backgroundColor: 'rgba(15, 23, 42, 0.9)', titleFont: { size: 14 }, bodyFont: { size: 14, weight: 'bold' }, padding: 12, cornerRadius: 8 }
                         },
                         scales: {
-                            y: { beginAtZero: true, max: maxVal, grid: { color: '#f1f5f9' }, ticks: { font: { weight: 'bold' } } },
+                            y: { beginAtZero: true, max: maxVal + (maxVal * 0.1), grid: { color: '#f1f5f9' }, ticks: { font: { weight: 'bold' } } },
                             x: { grid: { display: false }, ticks: { font: { weight: 'bold' }, color: '#64748b' } }
                         }
                     }
@@ -398,7 +417,7 @@
         const DEFAULT_API_KEY = ""; 
         const DEFAULT_GAS_URL = "https://script.google.com/macros/s/AKfycbyZmXOgSDqZDQRFFhsHRTvyQEq7Ire2d6g34yOwLkPOyPqE-67Ydxb9Au0zpWWsOAhs/exec"; 
 
-        // 🚨 헬퍼 함수: 파일명에서 학생 이름 추출
+        // 헬퍼 함수: 파일명에서 학생 이름 추출
         const extractStudentName = (fileName) => {
             if (!fileName) return "이름 입력 필요";
             const fileNameWithoutExt = fileName.replace(/\.[^/.]+$/, "");
@@ -421,7 +440,6 @@
             const [editingResultId, setEditingResultId] = useState(null);
             const [searchTerm, setSearchTerm] = useState(""); 
             
-            // 선택된 결과 ID 상태 관리 (체크박스용)
             const [selectedResultIds, setSelectedResultIds] = useState([]);
             
             const [answerKeys, setAnswerKeys] = useState({
@@ -431,6 +449,28 @@
 
             const [analysisStudent, setAnalysisStudent] = useState("");
             const [analysisExam, setAnalysisExam] = useState("");
+
+            // 🚨 파이어베이스에서 기존 데이터 & 시험지 자동 동기화 로드!
+            useEffect(() => {
+                let isMounted = true;
+                let retryCount = 0;
+                const loadFirebaseData = () => {
+                    if (window.fetchFromFirebase && window.fetchExamsFromFirebase) {
+                        window.fetchExamsFromFirebase().then(examData => {
+                            if (isMounted && examData) setAnswerKeys(examData);
+                        });
+                        
+                        window.fetchFromFirebase().then(dbData => {
+                            if (isMounted && dbData && dbData.length > 0) setResults(dbData);
+                        });
+                    } else if (retryCount < 20) {
+                        retryCount++;
+                        setTimeout(loadFirebaseData, 500); 
+                    }
+                };
+                loadFirebaseData();
+                return () => { isMounted = false; };
+            }, []);
 
             const getExamData = (unit) => {
                 const data = answerKeys[unit];
@@ -494,6 +534,10 @@
                         objective: newExamAnswers, 
                         subjective: newExamSubScores 
                     };
+                    
+                    // 🚨 Firebase에 시험지 템플릿 즉시 백업 저장!
+                    if (window.saveExamsToFirebase) window.saveExamsToFirebase(updated);
+                    
                     return updated;
                 });
                 
@@ -509,6 +553,10 @@
                 if (Object.keys(answerKeys).length <= 1) { setModal({ message: "최소 1개의 시험지는 존재해야 합니다.", type: 'error' }); return; }
                 const newKeys = { ...answerKeys };
                 delete newKeys[unitName];
+                
+                // 🚨 Firebase에도 삭제된 상태 즉시 업데이트
+                if (window.saveExamsToFirebase) window.saveExamsToFirebase(newKeys);
+                
                 setAnswerKeys(newKeys);
                 if (selectedUnit === unitName) setSelectedUnit(Object.keys(newKeys)[0]);
             };
@@ -521,7 +569,8 @@
                     preview: URL.createObjectURL(file),
                     status: 'ready', 
                     errorMessage: '',
-                    fileName: file.name
+                    fileName: file.name,
+                    hideOverlay: false
                 }));
                 setImages(prev => [...prev, ...newImages]);
             };
@@ -568,7 +617,6 @@
                                 prompt: systemPrompt,
                                 mimeType: imageData.mimeType,
                                 base64: imageData.data,
-                                // 🚨 원장님께서 확인하셨던 안정적인 다중 Fallback 모델 리스트 (3.0부터 순차 적용)
                                 models: [
                                     "gemini-3.0-flash",
                                     "gemini-2.5-flash",
@@ -618,101 +666,100 @@
                     }
                 };
 
-                const data = await fetchWithRetry();
-                const textResponse = data.candidates?.[0]?.content?.parts?.[0]?.text;
-                if (!textResponse) throw new Error("AI 응답이 비어있습니다.");
-                
-                const cleanText = textResponse.replace(/```json|```/gi, "").trim();
-                const startIndex = cleanText.indexOf('{');
-                const endIndex = cleanText.lastIndexOf('}');
-                
-                if (startIndex === -1 || endIndex === -1) {
-                    throw new Error("분석 결과에서 데이터를 찾지 못했습니다. (형식 파싱 오류)");
-                }
-                
-                const jsonString = cleanText.substring(startIndex, endIndex + 1);
-                try {
-                    return JSON.parse(jsonString);
-                } catch (e) {
-                    throw new Error("데이터 변환 중 내부 오류가 발생했습니다.");
-                }
+                const processAll = async () => {
+                    if (!gasUrl.trim()) {
+                        setModal({ message: "분석을 위해 설정 탭에서 구글 스크립트(GAS) URL을 먼저 입력해주세요.", type: 'error' });
+                        setView('settings');
+                        return;
+                    }
+                    if (!userApiKey.trim()) {
+                        setModal({ message: "설정 탭에서 새로운 Gemini API 키를 먼저 입력해주세요.", type: 'error' });
+                        setView('settings');
+                        return;
+                    }
+                    
+                    setIsProcessing(true);
+                    const newResults = [];
+                    for (let i = 0; i < images.length; i++) {
+                        const img = images[i];
+                        if (img.status === 'success') continue;
+                        
+                        setImages(prev => prev.map(item => item.id === img.id ? { ...item, status: 'processing', errorMessage: '' } : item));
+                        
+                        try {
+                            const analysis = await analyzeImage(img);
+                            const examData = getExamData(selectedUnit);
+                            const correctAnswers = examData.objective;
+                            let score = 0;
+                            const totalQs = correctAnswers.length;
+                            
+                            const details = (analysis.answers || []).map((ans, idx) => {
+                                if (idx >= totalQs) return null;
+                                const isCorrect = ans === correctAnswers[idx];
+                                if (isCorrect) score += (100 / totalQs);
+                                return { question: idx + 1, studentAnswer: ans, correctAnswer: correctAnswers[idx], isCorrect };
+                            }).filter(Boolean);
+
+                            const objectiveScore = Math.round(score);
+                            const subjectiveScores = Array(examData.subjective.length).fill(0);
+                            const totalScore = objectiveScore;
+
+                            const parsedName = extractStudentName(img.fileName);
+                            const parsedSchool = examData.school || selectedUnit.split(/[ _]/)[0];
+
+                            const resultId = Math.random().toString(36).substr(2, 9);
+                            
+                            const resultObj = {
+                                id: resultId,
+                                name: parsedName, 
+                                school: parsedSchool,
+                                info: "",
+                                unit: selectedUnit,
+                                objectiveScore: objectiveScore,
+                                subjectiveScores: subjectiveScores,
+                                totalScore: totalScore,
+                                details: details,
+                                timestamp: new Date().toLocaleString(),
+                                isSentToSheet: false 
+                            };
+                            
+                            newResults.push(resultObj);
+                            
+                            // 🚨 채점이 끝나는 즉시 파이어베이스에 실시간 개별 저장! (진정한 클라우드 기능)
+                            if (window.addResultToFirebase) {
+                                window.addResultToFirebase(resultObj);
+                            }
+                            
+                            setImages(prev => prev.map(item => item.id === img.id ? { ...item, status: 'success' } : item));
+                            
+                            setTimeout(() => {
+                                setImages(prev => prev.filter(item => item.id !== img.id));
+                            }, 3000);
+                            
+                        } catch (err) {
+                            console.error(err);
+                            setImages(prev => prev.map(item => item.id === img.id ? { ...item, status: 'error', errorMessage: err.message } : item));
+                        }
+                        
+                        if (i < images.length - 1) {
+                            await new Promise(resolve => setTimeout(resolve, 500));
+                        }
+                    }
+                    setResults(prev => [...prev, ...newResults]);
+                    setIsProcessing(false);
+                    if (newResults.length > 0) setView('results');
+                };
+
+                // 🚨 본문 실행 로직 연결을 위해 함수 외부로 processAll 반환
+                return { processAll };
             };
 
-            const processAll = async () => {
-                if (!gasUrl.trim()) {
-                    setModal({ message: "분석을 위해 설정 탭에서 구글 스크립트(GAS) URL을 먼저 입력해주세요.", type: 'error' });
-                    setView('settings');
-                    return;
-                }
-                if (!userApiKey.trim()) {
-                    setModal({ message: "설정 탭에서 새로운 Gemini API 키를 먼저 입력해주세요.", type: 'error' });
-                    setView('settings');
-                    return;
-                }
-                
-                setIsProcessing(true);
-                const newResults = [];
-                for (let i = 0; i < images.length; i++) {
-                    const img = images[i];
-                    if (img.status === 'success') continue;
-                    
-                    setImages(prev => prev.map(item => item.id === img.id ? { ...item, status: 'processing', errorMessage: '' } : item));
-                    
-                    try {
-                        const analysis = await analyzeImage(img);
-                        const examData = getExamData(selectedUnit);
-                        const correctAnswers = examData.objective;
-                        let score = 0;
-                        const totalQs = correctAnswers.length;
-                        
-                        const details = (analysis.answers || []).map((ans, idx) => {
-                            if (idx >= totalQs) return null;
-                            const isCorrect = ans === correctAnswers[idx];
-                            if (isCorrect) score += (100 / totalQs);
-                            return { question: idx + 1, studentAnswer: ans, correctAnswer: correctAnswers[idx], isCorrect };
-                        }).filter(Boolean);
-
-                        const objectiveScore = Math.round(score);
-                        const subjectiveScores = Array(examData.subjective.length).fill(0);
-                        const totalScore = objectiveScore;
-
-                        const parsedName = extractStudentName(img.fileName);
-                        const parsedSchool = examData.school || selectedUnit.split(/[ _]/)[0];
-
-                        const resultId = Math.random().toString(36).substr(2, 9);
-                        newResults.push({
-                            id: resultId,
-                            name: parsedName, 
-                            school: parsedSchool,
-                            info: "",
-                            unit: selectedUnit,
-                            objectiveScore: objectiveScore,
-                            subjectiveScores: subjectiveScores,
-                            totalScore: totalScore,
-                            details: details,
-                            timestamp: new Date().toLocaleString(),
-                            isSentToSheet: false 
-                        });
-                        
-                        setImages(prev => prev.map(item => item.id === img.id ? { ...item, status: 'success' } : item));
-                        
-                        // 🚨 3초(3000ms) 대기 후 화면에서 아예 이미지를 완전히 삭제
-                        setTimeout(() => {
-                            setImages(prev => prev.filter(item => item.id !== img.id));
-                        }, 3000);
-                        
-                    } catch (err) {
-                        console.error(err);
-                        setImages(prev => prev.map(item => item.id === img.id ? { ...item, status: 'error', errorMessage: err.message } : item));
-                    }
-                    
-                    if (i < images.length - 1) {
-                        await new Promise(resolve => setTimeout(resolve, 500));
-                    }
-                }
-                setResults(prev => [...prev, ...newResults]);
-                setIsProcessing(false);
-                if (newResults.length > 0) setView('results');
+            const { processAll } = analyzeImage;
+            
+            // 실제 버튼 클릭을 위한 이벤트 핸들러 분리
+            const handleProcessClick = async () => {
+                const processor = await analyzeImage();
+                processor.processAll();
             };
 
             const filteredResults = useMemo(() => {
@@ -736,18 +783,60 @@
 
                 setIsProcessing(true);
                 try {
+                    const groupedData = {};
+                    dataToSend.forEach(r => {
+                        if (!groupedData[r.unit]) groupedData[r.unit] = [];
+                        groupedData[r.unit].push(r);
+                    });
+
+                    const sheetsPayload = Object.keys(groupedData).map(unit => {
+                        const examKey = getExamData(unit);
+                        const objCount = examKey.objective.length;
+                        
+                        const headers = ["제출일시", "학생이름", "학교명", "객관식점수", "주관식점수", "최종총점"];
+                        for (let i = 1; i <= objCount; i++) headers.push(`${i}번`);
+                        
+                        const correctRow = ["-", "정답", "-", "-", "-", "-"];
+                        for (let i = 0; i < objCount; i++) correctRow.push(examKey.objective[i] || "");
+                        
+                        const studentRows = groupedData[unit].map(r => {
+                            const row = [r.timestamp, r.name, r.school, r.objectiveScore, r.subjectiveScores ? r.subjectiveScores.reduce((a,b)=>a+b,0) : 0, r.totalScore];
+                            for (let i = 0; i < objCount; i++) {
+                                const d = r.details.find(detail => detail.question === i + 1);
+                                if (d) {
+                                    row.push(d.isCorrect ? d.studentAnswer : `${d.studentAnswer}(X)`);
+                                } else {
+                                    row.push("미마킹");
+                                }
+                            }
+                            return row;
+                        });
+
+                        return { unit, headers, correctRow, studentRows };
+                    });
+
                     await fetch(gasUrl, { 
                         method: 'POST', 
                         headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-                        body: JSON.stringify({ action: 'save', data: dataToSend }) 
+                        body: JSON.stringify({ action: 'save_omr', sheets: sheetsPayload }) 
                     });
                     
-                    setResults(prev => prev.map(r => selectedResultIds.includes(r.id) ? { ...r, isSentToSheet: true } : r));
-                    setSelectedResultIds([]);
+                    // 🚨 Firebase에도 '시트 전송 완료(isSentToSheet: true)' 상태를 즉각 업데이트!
+                    setResults(prev => prev.map(r => {
+                        if (selectedResultIds.includes(r.id)) {
+                            const updatedR = { ...r, isSentToSheet: true };
+                            if (window.updateResultInFirebase) {
+                                window.updateResultInFirebase(r.id, { isSentToSheet: true });
+                            }
+                            return updatedR;
+                        }
+                        return r;
+                    }));
                     
+                    setSelectedResultIds([]);
                     setModal({ message: `${dataToSend.length}명의 데이터가 구글 시트에 전송되었습니다.`, type: 'success' });
                 } catch (error) { 
-                    setModal({ message: "저장 중 오류가 발생했습니다.", type: 'error' }); 
+                    setModal({ message: "저장 중 오류가 발생했습니다. 구글 앱스 스크립트 코드 업데이트를 확인해주세요.", type: 'error' }); 
                 } finally { 
                     setIsProcessing(false); 
                 }
@@ -757,15 +846,28 @@
             const uniqueExams = useMemo(() => Array.from(new Set(results.map(r => r.unit))).filter(Boolean), [results]);
 
             useEffect(() => {
+                const savedGasUrl = localStorage.getItem('omr_gas_url');
+                if (savedGasUrl && savedGasUrl !== DEFAULT_GAS_URL) {
+                    localStorage.setItem('omr_gas_url', DEFAULT_GAS_URL);
+                    setGasUrl(DEFAULT_GAS_URL);
+                } else if (!savedGasUrl) {
+                    localStorage.setItem('omr_gas_url', DEFAULT_GAS_URL);
+                }
+                
                 if (view === 'analysis') {
                     if (!analysisStudent && uniqueStudents.length > 0) setAnalysisStudent(uniqueStudents[0]);
                     if (!analysisExam && uniqueExams.length > 0) setAnalysisExam(uniqueExams[0]);
                 }
             }, [view, uniqueStudents, uniqueExams, analysisStudent, analysisExam]);
 
-            // 🚨 핵심 수정 구역: 분석 탭의 3등분(총점, 객관식, 주관식) 데이터 포맷 구성
             const studentChartData = useMemo(() => {
-                const data = results.filter(r => r.name === analysisStudent).sort((a,b) => new Date(a.timestamp) - new Date(b.timestamp));
+                const studentDataRaw = results.filter(r => r.name === analysisStudent);
+                const uniqueDataMap = new Map();
+                studentDataRaw.forEach(d => {
+                    uniqueDataMap.set(d.unit, d);
+                });
+                const data = Array.from(uniqueDataMap.values()).sort((a,b) => new Date(a.timestamp) - new Date(b.timestamp));
+
                 return {
                     labels: data.map(d => d.unit),
                     totalScores: data.map(d => d.totalScore),
@@ -783,9 +885,15 @@
             }, [results, analysisStudent, answerKeys]);
 
             const schoolChartData = useMemo(() => {
-                const data = results.filter(r => r.unit === analysisExam && r.school); 
+                const schoolDataRaw = results.filter(r => r.unit === analysisExam && r.school); 
+                const uniqueDataMap = new Map();
+                schoolDataRaw.forEach(r => {
+                    uniqueDataMap.set(`${r.school}_${r.name}`, r);
+                });
+                const uniqueData = Array.from(uniqueDataMap.values());
+
                 const grouped = {};
-                data.forEach(r => {
+                uniqueData.forEach(r => {
                     const sch = r.school;
                     if (!grouped[sch]) grouped[sch] = [];
                     grouped[sch].push(r);
@@ -817,6 +925,10 @@
                             onClose={() => setEditingResultId(null)}
                             onSave={(id, updatedData) => {
                                 setResults(prev => prev.map(r => r.id === id ? { ...r, ...updatedData } : r));
+                                // 🚨 모달에서 수정한 데이터도 파이어베이스에 실시간 백업!
+                                if (window.updateResultInFirebase) {
+                                    window.updateResultInFirebase(id, updatedData);
+                                }
                                 setEditingResultId(null);
                                 setModal({ message: "학생 정보 및 점수가 업데이트되었습니다.", type: 'success' });
                             }}
@@ -888,7 +1000,6 @@
                                                 <div key={img.id} className="relative rounded-2xl overflow-hidden border-2 border-slate-50 shadow-md h-40 group">
                                                     <img src={img.preview} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" />
                                                     
-                                                    {/* 오버레이가 3초 뒤에 이미지 째로 삭제됩니다 */}
                                                     {!img.hideOverlay && (
                                                         <div className="absolute inset-0 bg-slate-900/40 flex items-center justify-center backdrop-blur-[1px] transition-opacity duration-1000">
                                                             {img.status === 'success' ? (
@@ -920,7 +1031,7 @@
 
                                     <div className="pt-4">
                                         <button 
-                                            onClick={processAll} 
+                                            onClick={handleProcessClick} 
                                             disabled={isProcessing || images.length === 0} 
                                             className="w-full py-6 bg-indigo-600 text-white rounded-[1.5rem] font-black text-xl shadow-2xl shadow-indigo-200 hover:bg-indigo-700 hover:-translate-y-1 transition-all disabled:bg-slate-200 disabled:text-slate-400 disabled:shadow-none disabled:translate-y-0 flex justify-center items-center gap-4"
                                         >
@@ -949,7 +1060,14 @@
                                                 onChange={(e) => setSearchTerm(e.target.value)}
                                                 className="border-2 border-slate-200 px-4 py-2.5 rounded-xl text-sm font-bold outline-none focus:border-indigo-500 w-full sm:w-48 bg-white shadow-sm"
                                             />
-                                            <button onClick={() => { if(confirm("모든 결과를 초기화하시겠습니까?")) { setResults([]); setSelectedResultIds([]); } }} className="text-slate-400 hover:text-red-500 text-xs font-black transition-colors px-2">초기화</button>
+                                            <button onClick={() => { 
+                                                if(confirm("모든 결과를 초기화하시겠습니까?")) { 
+                                                    setResults([]); 
+                                                    setSelectedResultIds([]); 
+                                                    // 🚨 파이어베이스에서 전체 삭제 연동
+                                                    if (window.deleteAllResultsInFirebase) window.deleteAllResultsInFirebase();
+                                                } 
+                                            }} className="text-slate-400 hover:text-red-500 text-xs font-black transition-colors px-2">초기화</button>
                                             <button 
                                                 onClick={saveToSheets} 
                                                 disabled={selectedResultIds.length === 0 || isProcessing} 
@@ -1112,10 +1230,8 @@
                                                     </select>
                                                 </div>
 
-                                                {/* 🚨 수정 구역: 3등분으로 완벽 분할된 학생 성취도 분석 섹션 */}
                                                 {studentChartData && studentChartData.labels.length > 0 ? (
                                                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 pt-4">
-                                                        {/* 1. 총점 그래프 (인디고 테마) */}
                                                         <div className="bg-indigo-50/40 p-6 rounded-3xl border border-indigo-100 shadow-sm">
                                                             <ComboChart 
                                                                 data={studentChartData.totalScores} 
@@ -1128,7 +1244,6 @@
                                                                 maxScore={100} 
                                                             />
                                                         </div>
-                                                        {/* 2. 객관식 정답 수 그래프 (청록/Teal 테마) */}
                                                         <div className="bg-teal-50/40 p-6 rounded-3xl border border-teal-100 shadow-sm">
                                                             <GroupedBarChart 
                                                                 data1={studentChartData.objCorrectCounts} 
@@ -1141,7 +1256,6 @@
                                                                 color2="#ccfbf1" 
                                                             />
                                                         </div>
-                                                        {/* 3. 주관식 획득 점수 (핑크/Rose 테마) */}
                                                         <div className="bg-rose-50/40 p-6 rounded-3xl border border-rose-100 shadow-sm">
                                                             <GroupedBarChart 
                                                                 data1={studentChartData.subjScores} 
@@ -1440,6 +1554,89 @@
 
         const root = ReactDOM.createRoot(document.getElementById('root'));
         root.render(<App />);
+    </script>
+    
+    <!-- Firebase 연동 모듈 -->
+    <script type="module">
+      import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+      import { getFirestore, collection, addDoc, getDocs, deleteDoc, doc, setDoc, updateDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+      const firebaseConfig = {
+        apiKey: "AIzaSyAfM4dIVjANychGT2798HTEQvwSxXRRWyQ",
+        authDomain: "mathkind-142d4.firebaseapp.com",
+        projectId: "mathkind-142d4",
+        storageBucket: "mathkind-142d4.firebasestorage.app",
+        messagingSenderId: "919722012853",
+        appId: "1:919722012853:web:9b051d3f0f037a1af68efc"
+      };
+
+      const app = initializeApp(firebaseConfig);
+      const db = getFirestore(app);
+
+      // --- OMR 결과 클라우드 동기화 ---
+      window.fetchFromFirebase = async () => {
+        try {
+          const querySnapshot = await getDocs(collection(db, "haeun_omr_data"));
+          const fetchedResults = [];
+          querySnapshot.forEach((docSnap) => {
+            fetchedResults.push({ id: docSnap.id, ...docSnap.data() });
+          });
+          return fetchedResults.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+        } catch (error) {
+          console.error("Firebase Result Fetch Error:", error);
+          return [];
+        }
+      };
+
+      window.addResultToFirebase = async (result) => {
+        try {
+          await setDoc(doc(db, "haeun_omr_data", result.id), result);
+        } catch (error) {
+          console.error("Firebase Add Error:", error);
+        }
+      };
+
+      window.updateResultInFirebase = async (id, updateData) => {
+        try {
+          await updateDoc(doc(db, "haeun_omr_data", id), updateData);
+        } catch (error) {
+          console.error("Firebase Update Error:", error);
+        }
+      };
+
+      window.deleteAllResultsInFirebase = async () => {
+        try {
+          const querySnapshot = await getDocs(collection(db, "haeun_omr_data"));
+          querySnapshot.forEach((docSnap) => {
+            deleteDoc(doc(db, "haeun_omr_data", docSnap.id));
+          });
+        } catch (error) {
+          console.error("Firebase Delete All Error:", error);
+        }
+      };
+
+      // --- 시험지 세팅 클라우드 동기화 ---
+      window.fetchExamsFromFirebase = async () => {
+        try {
+          const querySnapshot = await getDocs(collection(db, "haeun_omr_settings"));
+          let examsData = null;
+          querySnapshot.forEach((docSnap) => {
+            if (docSnap.id === "exam_keys") examsData = docSnap.data().data;
+          });
+          return examsData ? JSON.parse(examsData) : null;
+        } catch (error) {
+          console.error("Firebase Exam Fetch Error:", error);
+          return null;
+        }
+      };
+
+      window.saveExamsToFirebase = async (exams) => {
+        try {
+          await setDoc(doc(db, "haeun_omr_settings", "exam_keys"), { data: JSON.stringify(exams) });
+        } catch (error) {
+          console.error("Firebase Exam Save Error:", error);
+        }
+      };
     </script>
 </body>
 </html>

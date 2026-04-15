@@ -511,11 +511,9 @@
                                 prompt: systemPrompt,
                                 mimeType: imageData.mimeType,
                                 base64: imageData.data,
-                                // GAS 서버에서 하나가 막히면 1초 안에 바로 다른 모델로 우회하도록 다중 모델 전달!
+                                // 🚨 AI 모델을 제미나이 3.0 플래시로 설정
                                 models: [
-                                    "gemini-2.5-flash",
-                                    "gemini-1.5-flash",
-                                    "gemini-1.5-pro"
+                                    "gemini-3.0-flash"
                                 ]
                             })
                         });

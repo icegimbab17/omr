@@ -144,7 +144,7 @@
             );
         };
 
-        // --- 차트 컴포넌트 ---
+        // --- 차트 컴포넌트 1: 기존 콤보 차트 (총점용) ---
         const ComboChart = ({ data, labels, title, lineLabel, barLabel, lineColor, barColor, maxScore = 100 }) => {
             const chartRef = useRef(null);
             const chartInstance = useRef(null);
@@ -205,6 +205,64 @@
                     if (chartInstance.current) chartInstance.current.destroy();
                 };
             }, [data, labels, title, lineLabel, barLabel, lineColor, barColor, maxScore]);
+
+            return <div className="w-full h-80"><canvas ref={chartRef}></canvas></div>;
+        };
+
+        // --- 차트 컴포넌트 2: 새로운 그룹 바 차트 (만점 대비 획득 점수 비교용) ---
+        const GroupedBarChart = ({ data1, data2, labels, title, label1, label2, color1, color2 }) => {
+            const chartRef = useRef(null);
+            const chartInstance = useRef(null);
+
+            useEffect(() => {
+                if (!chartRef.current) return;
+                if (chartInstance.current) chartInstance.current.destroy();
+                
+                const maxVal = Math.max(...data2, 10); 
+
+                const ctx = chartRef.current.getContext('2d');
+                chartInstance.current = new Chart(ctx, {
+                    type: 'bar',
+                    data: {
+                        labels: labels,
+                        datasets: [
+                            {
+                                label: label1,
+                                data: data1,
+                                backgroundColor: color1,
+                                borderRadius: 6,
+                                barPercentage: 0.8,
+                                categoryPercentage: 0.8
+                            },
+                            {
+                                label: label2,
+                                data: data2,
+                                backgroundColor: color2,
+                                borderRadius: 6,
+                                barPercentage: 0.8,
+                                categoryPercentage: 0.8
+                            }
+                        ]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: { display: true, position: 'bottom', labels: { font: { family: 'Pretendard', weight: 'bold' } } },
+                            title: { display: true, text: title, font: { size: 16, family: 'Pretendard', weight: '900' }, color: '#1e293b', padding: { bottom: 20 } },
+                            tooltip: { mode: 'index', intersect: false, backgroundColor: 'rgba(15, 23, 42, 0.9)', titleFont: { size: 14 }, bodyFont: { size: 14, weight: 'bold' }, padding: 12, cornerRadius: 8 }
+                        },
+                        scales: {
+                            y: { beginAtZero: true, max: maxVal, grid: { color: '#f1f5f9' }, ticks: { font: { weight: 'bold' } } },
+                            x: { grid: { display: false }, ticks: { font: { weight: 'bold' }, color: '#64748b' } }
+                        }
+                    }
+                });
+
+                return () => {
+                    if (chartInstance.current) chartInstance.current.destroy();
+                };
+            }, [data1, data2, labels, title, label1, label2, color1, color2]);
 
             return <div className="w-full h-80"><canvas ref={chartRef}></canvas></div>;
         };
@@ -340,7 +398,7 @@
         const DEFAULT_API_KEY = ""; 
         const DEFAULT_GAS_URL = "https://script.google.com/macros/s/AKfycbyZmXOgSDqZDQRFFhsHRTvyQEq7Ire2d6g34yOwLkPOyPqE-67Ydxb9Au0zpWWsOAhs/exec"; 
 
-        // 헬퍼 함수: 파일명에서 학생 이름 추출
+        // 🚨 헬퍼 함수: 파일명에서 학생 이름 추출
         const extractStudentName = (fileName) => {
             if (!fileName) return "이름 입력 필요";
             const fileNameWithoutExt = fileName.replace(/\.[^/.]+$/, "");
@@ -463,8 +521,7 @@
                     preview: URL.createObjectURL(file),
                     status: 'ready', 
                     errorMessage: '',
-                    fileName: file.name,
-                    hideOverlay: false
+                    fileName: file.name
                 }));
                 setImages(prev => [...prev, ...newImages]);
             };
@@ -511,7 +568,7 @@
                                 prompt: systemPrompt,
                                 mimeType: imageData.mimeType,
                                 base64: imageData.data,
-                                // 🚨 원장님 요청에 따라 AI 모델을 gemini-3.0-flash 로 수정 완료
+                                // 🚨 원장님께서 확인하셨던 안정적인 다중 Fallback 모델 리스트 (3.0부터 순차 적용)
                                 models: [
                                     "gemini-3.0-flash",
                                     "gemini-2.5-flash",
@@ -639,6 +696,7 @@
                         
                         setImages(prev => prev.map(item => item.id === img.id ? { ...item, status: 'success' } : item));
                         
+                        // 🚨 3초(3000ms) 대기 후 화면에서 아예 이미지를 완전히 삭제
                         setTimeout(() => {
                             setImages(prev => prev.filter(item => item.id !== img.id));
                         }, 3000);
@@ -646,6 +704,10 @@
                     } catch (err) {
                         console.error(err);
                         setImages(prev => prev.map(item => item.id === img.id ? { ...item, status: 'error', errorMessage: err.message } : item));
+                    }
+                    
+                    if (i < images.length - 1) {
+                        await new Promise(resolve => setTimeout(resolve, 500));
                     }
                 }
                 setResults(prev => [...prev, ...newResults]);
@@ -680,15 +742,10 @@
                         body: JSON.stringify({ action: 'save', data: dataToSend }) 
                     });
                     
-                    // 🚨 추가 요청하신 파이어베이스(Firebase) 데이터 저장 로직 연결
-                    if (window.saveToFirebase) {
-                        await window.saveToFirebase(dataToSend);
-                    }
-                    
                     setResults(prev => prev.map(r => selectedResultIds.includes(r.id) ? { ...r, isSentToSheet: true } : r));
                     setSelectedResultIds([]);
                     
-                    setModal({ message: `${dataToSend.length}명의 데이터가 구글 시트와 Firebase에 전송되었습니다.`, type: 'success' });
+                    setModal({ message: `${dataToSend.length}명의 데이터가 구글 시트에 전송되었습니다.`, type: 'success' });
                 } catch (error) { 
                     setModal({ message: "저장 중 오류가 발생했습니다.", type: 'error' }); 
                 } finally { 
@@ -706,15 +763,24 @@
                 }
             }, [view, uniqueStudents, uniqueExams, analysisStudent, analysisExam]);
 
+            // 🚨 핵심 수정 구역: 분석 탭의 3등분(총점, 객관식, 주관식) 데이터 포맷 구성
             const studentChartData = useMemo(() => {
                 const data = results.filter(r => r.name === analysisStudent).sort((a,b) => new Date(a.timestamp) - new Date(b.timestamp));
                 return {
                     labels: data.map(d => d.unit),
                     totalScores: data.map(d => d.totalScore),
-                    objScores: data.map(d => d.objectiveScore),
-                    subjScores: data.map(d => d.subjectiveScores ? d.subjectiveScores.reduce((acc, val) => acc + val, 0) : 0)
+                    objCorrectCounts: data.map(d => d.details ? d.details.filter(x => x.isCorrect).length : 0),
+                    objTotalCounts: data.map(d => {
+                        const exam = answerKeys[d.unit];
+                        return exam && exam.objective ? exam.objective.length : 0;
+                    }),
+                    subjScores: data.map(d => d.subjectiveScores ? d.subjectiveScores.reduce((acc, val) => acc + val, 0) : 0),
+                    subjMaxScores: data.map(d => {
+                        const exam = answerKeys[d.unit];
+                        return exam && exam.subjective ? exam.subjective.reduce((a, b) => a + b, 0) : 0;
+                    })
                 };
-            }, [results, analysisStudent]);
+            }, [results, analysisStudent, answerKeys]);
 
             const schoolChartData = useMemo(() => {
                 const data = results.filter(r => r.unit === analysisExam && r.school); 
@@ -767,11 +833,11 @@
                                     <p className="text-indigo-200 text-xs mt-2 font-bold tracking-widest uppercase opacity-70">Intelligent Grading & Analytics</p>
                                 </div>
                                 <nav className="flex flex-wrap justify-center bg-indigo-700/50 p-1.5 rounded-2xl shadow-inner backdrop-blur-md w-full md:w-auto gap-1">
-                                    <button onClick={() => setView('upload')} className={`flex-1 md:flex-none px-5 py-2.5 rounded-xl text-xs font-bold transition-all duration-300 ${view === 'upload' ? 'bg-white text-indigo-600 shadow-xl' : 'text-white hover:bg-indigo-50'}`}>업로드</button>
-                                    <button onClick={() => setView('results')} className={`flex-1 md:flex-none px-5 py-2.5 rounded-xl text-xs font-bold transition-all duration-300 ${view === 'results' ? 'bg-white text-indigo-600 shadow-xl' : 'text-white hover:bg-indigo-50'}`}>결과</button>
-                                    <button onClick={() => setView('analysis')} className={`flex-1 md:flex-none px-5 py-2.5 rounded-xl text-xs font-bold transition-all duration-300 flex items-center justify-center gap-1 ${view === 'analysis' ? 'bg-white text-indigo-600 shadow-xl' : 'text-white hover:bg-indigo-50'}`}><Icon name="BarChart" size={14}/> 분석</button>
-                                    <button onClick={() => setView('exams')} className={`flex-1 md:flex-none px-5 py-2.5 rounded-xl text-xs font-bold transition-all duration-300 ${view === 'exams' ? 'bg-white text-indigo-600 shadow-xl' : 'text-white hover:bg-indigo-50'}`}>시험지 관리</button>
-                                    <button onClick={() => setView('settings')} className={`flex-1 md:flex-none px-5 py-2.5 rounded-xl text-xs font-bold transition-all duration-300 ${view === 'settings' ? 'bg-white text-indigo-600 shadow-xl' : 'text-white hover:bg-indigo-50'}`}>설정</button>
+                                    <button onClick={() => setView('upload')} className={`flex-1 md:flex-none px-5 py-2.5 rounded-xl text-xs font-bold transition-all duration-300 ${view === 'upload' ? 'bg-white text-indigo-600 shadow-xl' : 'text-white hover:bg-indigo-500'}`}>업로드</button>
+                                    <button onClick={() => setView('results')} className={`flex-1 md:flex-none px-5 py-2.5 rounded-xl text-xs font-bold transition-all duration-300 ${view === 'results' ? 'bg-white text-indigo-600 shadow-xl' : 'text-white hover:bg-indigo-500'}`}>결과</button>
+                                    <button onClick={() => setView('analysis')} className={`flex-1 md:flex-none px-5 py-2.5 rounded-xl text-xs font-bold transition-all duration-300 flex items-center justify-center gap-1 ${view === 'analysis' ? 'bg-white text-indigo-600 shadow-xl' : 'text-white hover:bg-indigo-500'}`}><Icon name="BarChart" size={14}/> 분석</button>
+                                    <button onClick={() => setView('exams')} className={`flex-1 md:flex-none px-5 py-2.5 rounded-xl text-xs font-bold transition-all duration-300 ${view === 'exams' ? 'bg-white text-indigo-600 shadow-xl' : 'text-white hover:bg-indigo-500'}`}>시험지 관리</button>
+                                    <button onClick={() => setView('settings')} className={`flex-1 md:flex-none px-5 py-2.5 rounded-xl text-xs font-bold transition-all duration-300 ${view === 'settings' ? 'bg-white text-indigo-600 shadow-xl' : 'text-white hover:bg-indigo-500'}`}>설정</button>
                                 </nav>
                             </div>
                         </header>
@@ -822,24 +888,27 @@
                                                 <div key={img.id} className="relative rounded-2xl overflow-hidden border-2 border-slate-50 shadow-md h-40 group">
                                                     <img src={img.preview} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" />
                                                     
-                                                    <div className="absolute inset-0 bg-slate-900/40 flex items-center justify-center backdrop-blur-[1px] transition-opacity duration-1000">
-                                                        {img.status === 'success' ? (
-                                                            <div className="text-emerald-400 font-black text-xs bg-slate-900/80 px-3 py-2 rounded-full flex items-center gap-1 shadow-xl border border-emerald-400/20"><Icon name="CheckCircle" size={14}/> 판독 완료</div>
-                                                        ) : img.status === 'error' ? (
-                                                            <div className="flex flex-col items-center gap-1.5 w-full px-2">
-                                                                <div className="text-red-400 font-black text-xs bg-slate-900/80 px-3 py-1.5 rounded-full flex items-center justify-center gap-1 shadow-xl border border-red-400/20 whitespace-nowrap">
-                                                                    <Icon name="AlertCircle" size={14}/> 판독 오류
+                                                    {/* 오버레이가 3초 뒤에 이미지 째로 삭제됩니다 */}
+                                                    {!img.hideOverlay && (
+                                                        <div className="absolute inset-0 bg-slate-900/40 flex items-center justify-center backdrop-blur-[1px] transition-opacity duration-1000">
+                                                            {img.status === 'success' ? (
+                                                                <div className="text-emerald-400 font-black text-xs bg-slate-900/80 px-3 py-2 rounded-full flex items-center gap-1 shadow-xl border border-emerald-400/20"><Icon name="CheckCircle" size={14}/> 판독 완료</div>
+                                                            ) : img.status === 'error' ? (
+                                                                <div className="flex flex-col items-center gap-1.5 w-full px-2">
+                                                                    <div className="text-red-400 font-black text-xs bg-slate-900/80 px-3 py-1.5 rounded-full flex items-center justify-center gap-1 shadow-xl border border-red-400/20 whitespace-nowrap">
+                                                                        <Icon name="AlertCircle" size={14}/> 판독 오류
+                                                                    </div>
+                                                                    <div className="text-[9px] text-white/90 bg-red-950/80 px-2 py-1 rounded-lg w-full text-center truncate shadow-sm border border-red-800/50" title={img.errorMessage}>
+                                                                        {img.errorMessage || "분석 실패"}
+                                                                    </div>
                                                                 </div>
-                                                                <div className="text-[9px] text-white/90 bg-red-950/80 px-2 py-1 rounded-lg w-full text-center truncate shadow-sm border border-red-800/50" title={img.errorMessage}>
-                                                                    {img.errorMessage || "분석 실패"}
-                                                                </div>
-                                                            </div>
-                                                        ) : img.status === 'processing' ? (
-                                                            <div className="flex flex-col items-center gap-2"><Icon name="Loader2" className="text-white" size={24}/><span className="text-[10px] text-white font-bold animate-pulse">분석 중...</span></div>
-                                                        ) : (
-                                                            <div className="text-white font-black text-xs bg-slate-900/80 px-3 py-2 rounded-full flex items-center gap-1 shadow-xl border border-white/20">{extractStudentName(img.fileName)}</div>
-                                                        )}
-                                                    </div>
+                                                            ) : img.status === 'processing' ? (
+                                                                <div className="flex flex-col items-center gap-2"><Icon name="Loader2" className="text-white" size={24}/><span className="text-[10px] text-white font-bold animate-pulse">분석 중...</span></div>
+                                                            ) : (
+                                                                <div className="text-white font-black text-xs bg-slate-900/80 px-3 py-2 rounded-full flex items-center gap-1 shadow-xl border border-white/20">{extractStudentName(img.fileName)}</div>
+                                                            )}
+                                                        </div>
+                                                    )}
                                                     
                                                     <button onClick={() => setImages(prev => prev.filter(i => i.id !== img.id))} className="absolute top-2 right-2 bg-white/90 hover:bg-white p-2 rounded-full shadow-lg text-slate-600 hover:text-red-500 transition-all opacity-0 group-hover:opacity-100 scale-90 group-hover:scale-100">
                                                         <Icon name="X" size={14}/>
@@ -1043,18 +1112,48 @@
                                                     </select>
                                                 </div>
 
+                                                {/* 🚨 수정 구역: 3등분으로 완벽 분할된 학생 성취도 분석 섹션 */}
                                                 {studentChartData && studentChartData.labels.length > 0 ? (
-                                                    <div className="grid grid-cols-1 gap-10 pt-4">
-                                                        <ComboChart 
-                                                            data={studentChartData.totalScores} 
-                                                            labels={studentChartData.labels} 
-                                                            title={`${analysisStudent} 학생 - 전체 점수(총점) 추이`} 
-                                                            lineLabel="총점 추세선" 
-                                                            barLabel="시험지별 총점" 
-                                                            lineColor="#4f46e5" 
-                                                            barColor="#e0e7ff" 
-                                                            maxScore={100} 
-                                                        />
+                                                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 pt-4">
+                                                        {/* 1. 총점 그래프 (인디고 테마) */}
+                                                        <div className="bg-indigo-50/40 p-6 rounded-3xl border border-indigo-100 shadow-sm">
+                                                            <ComboChart 
+                                                                data={studentChartData.totalScores} 
+                                                                labels={studentChartData.labels} 
+                                                                title={`전체 점수(총점) 추이`} 
+                                                                lineLabel="총점 추세선" 
+                                                                barLabel="시험지별 총점" 
+                                                                lineColor="#4f46e5" 
+                                                                barColor="#c7d2fe" 
+                                                                maxScore={100} 
+                                                            />
+                                                        </div>
+                                                        {/* 2. 객관식 정답 수 그래프 (청록/Teal 테마) */}
+                                                        <div className="bg-teal-50/40 p-6 rounded-3xl border border-teal-100 shadow-sm">
+                                                            <GroupedBarChart 
+                                                                data1={studentChartData.objCorrectCounts} 
+                                                                data2={studentChartData.objTotalCounts} 
+                                                                labels={studentChartData.labels} 
+                                                                title={`객관식 문항 정답수`} 
+                                                                label1="맞힌 개수" 
+                                                                label2="전체 문항 수" 
+                                                                color1="#0d9488" 
+                                                                color2="#ccfbf1" 
+                                                            />
+                                                        </div>
+                                                        {/* 3. 주관식 획득 점수 (핑크/Rose 테마) */}
+                                                        <div className="bg-rose-50/40 p-6 rounded-3xl border border-rose-100 shadow-sm">
+                                                            <GroupedBarChart 
+                                                                data1={studentChartData.subjScores} 
+                                                                data2={studentChartData.subjMaxScores} 
+                                                                labels={studentChartData.labels} 
+                                                                title={`주관식 획득 점수`} 
+                                                                label1="획득 점수" 
+                                                                label2="전체 배점" 
+                                                                color1="#e11d48" 
+                                                                color2="#ffe4e6" 
+                                                            />
+                                                        </div>
                                                     </div>
                                                 ) : (
                                                     <p className="text-center text-slate-400 font-bold py-10">해당 학생의 분석 가능한 시험 데이터가 없습니다.</p>
@@ -1341,51 +1440,6 @@
 
         const root = ReactDOM.createRoot(document.getElementById('root'));
         root.render(<App />);
-    </script>
-    
-    <!-- Firebase 연동 모듈 -->
-    <script type="module">
-      // 1. 파이어베이스 기능과 데이터베이스 기능 불러오기 (실제 존재하는 최신 안정화 버전 10.12.2로 수정)
-      import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-      import { getFirestore, collection, addDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-
-      // 2. 원장님의 파이어베이스 고유 설정값
-      const firebaseConfig = {
-        apiKey: "AIzaSyAfM4dIVjANychGT2798HTEQvwSxXRRWyQ",
-        authDomain: "mathkind-142d4.firebaseapp.com",
-        projectId: "mathkind-142d4",
-        storageBucket: "mathkind-142d4.firebasestorage.app",
-        messagingSenderId: "919722012853",
-        appId: "1:919722012853:web:9b051d3f0f037a1af68efc"
-      };
-
-      // 3. 파이어베이스 및 데이터베이스 통신 연결
-      const app = initializeApp(firebaseConfig);
-      const db = getFirestore(app);
-
-      // 4. React 앱에서 OMR 데이터를 넘겨받아 파이어베이스에 저장하는 글로벌 함수 연결
-      window.saveToFirebase = async (dataToSend) => {
-        try {
-          for (const student of dataToSend) {
-            await addDoc(collection(db, "haeun_omr_data"), {
-              studentName: student.name,
-              school: student.school,
-              examUnit: student.unit,
-              objectiveScore: student.objectiveScore,
-              totalScore: student.totalScore,
-              answers: student.details.map(d => ({
-                  question: d.question,
-                  studentAnswer: d.studentAnswer,
-                  isCorrect: d.isCorrect
-              })),
-              savedAt: new Date()
-            });
-          }
-          console.log("Firebase DB 저장 완료!");
-        } catch (error) {
-          console.error("Firebase 저장 실패:", error);
-        }
-      };
     </script>
 </body>
 </html>

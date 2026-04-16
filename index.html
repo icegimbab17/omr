@@ -442,7 +442,7 @@
             
             const [selectedResultIds, setSelectedResultIds] = useState([]);
             
-            // 🚨 기본값에도 객관식 점수(objectiveScores) 배열을 추가합니다.
+            // 기본값에도 객관식 점수(objectiveScores) 배열을 추가합니다.
             const [answerKeys, setAnswerKeys] = useState({
                 "양운중_1학기_중간": { 
                     school: "양운중", 
@@ -478,7 +478,7 @@
                 return () => { isMounted = false; };
             }, []);
 
-            // 🚨 저장된 데이터가 옛날 방식이더라도 안전하게 불러오도록 객관식 점수(objectiveScores) 방어 로직 추가
+            // 저장된 데이터가 옛날 방식이더라도 안전하게 불러오도록 객관식 점수(objectiveScores) 방어 로직 추가
             const getExamData = (unit) => {
                 const data = answerKeys[unit];
                 if (!data) return { school: "", objective: Array(20).fill(0), objectiveScores: Array(20).fill(1), subjective: [] };
@@ -498,7 +498,7 @@
             const [newExamSchool, setNewExamSchool] = useState(""); 
             const [newExamLength, setNewExamLength] = useState(20);
             
-            // 🚨 정답뿐만 아니라 배점(ObjScores)도 상태로 관리
+            // 정답뿐만 아니라 배점(ObjScores)도 상태로 관리
             const [newExamAnswers, setNewExamAnswers] = useState(Array(20).fill(1));
             const [newExamObjScores, setNewExamObjScores] = useState(Array(20).fill(1));
             
@@ -528,7 +528,7 @@
                 setNewExamAnswers(newAns);
             };
 
-            // 🚨 객관식 배점 개별 수정 핸들러
+            // 객관식 배점 개별 수정 핸들러
             const updateNewObjScore = (index, value) => {
                 const newScores = [...newExamObjScores];
                 newScores[index] = Math.max(0, parseFloat(value) || 0); 
@@ -538,7 +538,7 @@
             const updateNewSubScore = (index, value) => {
                 const newSub = [...newExamSubScores];
                 newSub[index] = Math.max(1, Math.min(9, parseInt(value) || 0)); 
-                setNewSubScores(newSub);
+                setNewExamSubScores(newSub);
             };
 
             const saveNewExam = () => {
@@ -552,7 +552,7 @@
                     updated[newExamName] = { 
                         school: newExamSchool.trim(), 
                         objective: newExamAnswers, 
-                        objectiveScores: newExamObjScores, // 🚨 저장할 때 배점도 같이 저장
+                        objectiveScores: newExamObjScores, // 저장할 때 배점도 같이 저장
                         subjective: newExamSubScores 
                     };
                     
@@ -596,7 +596,7 @@
                 e.target.value = ''; 
             };
 
-            // 제미나이(AI) 기반 이미지 분석 로직
+            // 🚨 제미나이(AI) 기반 이미지 분석 로직 복구 (환각 절대 방어 프롬프트 탑재)
             const analyzeImage = async (imageObj, expectedQCount) => {
                 const imageData = await new Promise((resolve) => {
                     const reader = new FileReader();
@@ -608,24 +608,21 @@
                     reader.readAsDataURL(imageObj.file);
                 });
 
+                // 🚨 AI가 학년/반 칸을 읽거나, 빈칸을 지어내는 현상을 완벽 차단
                 const systemPrompt = `
-                    너는 한국의 중학교 OMR 카드를 판독하는 세계 최고의 시각 분석 AI야.
-                    현재 OMR 리딩 과정에서 '학년/반/번호' 란을 1번 문제로 착각하거나, 빈칸을 답으로 지어내는 치명적인 오류가 발생하고 있어. 
-                    이 오류를 고치기 위해 아래 [절대 규칙]을 픽셀 단위로 스캔하며 완벽하게 지켜줘.
-
+                    너는 최고의 시각 지능을 가진 OMR 판독 전문가야.
+                    첨부된 OMR 카드 이미지에서 '객관식 문항 마킹'을 정확하게 읽어내야 해.
+                    ${usePerspectiveCorrection ? '이미지가 기울어졌거나 왜곡이 있으니 시각적 원근 보정을 염두에 두고 판독해.' : '표준적인 각도에서 마킹을 판독해.'}
+                    
                     [🚨 OMR 정밀 판독 절대 규칙 🚨]
-                    1. **시작 위치 (매우 중요)**: 이미지 맨 왼쪽의 회색/흰색 배경인 '학년, 반, 번호' 열은 절대로 읽지 마. **첫 번째 진한 파란색 세로줄**이 시작되는 곳이 진짜 1번 문항이야.
-                    2. **블록 단위 세로 스캔**:
-                       - 첫 번째 파란색 세로줄: 1번~10번 (위에서 아래로)
-                       - 두 번째 파란색 세로줄: 11번~20번
-                       - 세 번째 파란색 세로줄: 21번~30번
-                       - 네 번째 파란색 세로줄: 31번~40번
-                    3. **답안 판별 원리**: 각 문항(가로줄)에는 왼쪽부터 순서대로 ① ② ③ ④ ⑤ 가 나열되어 있어. 이 중에서 **컴퓨터용 사인펜으로 아주 새까맣게 꽉 채워진 동그라미**의 숫자 하나만 추출해.
-                    4. **환각(지어내기) 엄격 금지**:
-                       - 파란색 배경선이나 흐릿한 연필 자국은 절대 답이 아니야.
-                       - 확실한 까만 마킹이 없으면(빈칸) **무조건 0**으로 둬. 절대 답을 지어내지 마!
-                       - 한 문항에 마킹이 2개 이상이면 **무조건 0**이야.
-                    5. **문항 수 타겟팅**: 이 시험지는 정확히 **${expectedQCount}문제**야. 1번부터 ${expectedQCount}번까지만 순서대로 읽고, 딱 ${expectedQCount}개의 숫자가 담긴 배열로 만들어줘.
+                    1. **시작 위치 (매우 중요)**: 이미지 맨 왼쪽의 회색/흰색 배경인 '학년, 반, 번호' 열은 절대 답안이 아니야! 절대로 읽지 마. **첫 번째 진한 파란색 세로줄**이 시작되는 곳이 진짜 1번 문항이야.
+                    2. **블록 단위 스캔**: 파란색 세로줄 1개당 위에서 아래로 10문제씩 들어있어.
+                    3. **빈칸(미마킹) 엄격 판별 (가장 중요)**: 
+                       - 확실하게 컴퓨터용 사인펜으로 까맣게 칠해지지 않은 곳은 **무조건 0**으로 처리해!
+                       - 파란색 테두리나 흐릿한 연필 자국을 마킹으로 착각해서 지어내면 절대 안 돼.
+                       - 만약 학생이 15번까지만 풀고 뒤를 비워뒀다면, 16번부터는 확실하게 모두 0이어야 해.
+                    4. **문항 수 제한**: 이 시험지는 정확히 **${expectedQCount}문제**야. 딱 1번부터 ${expectedQCount}번까지만 판독해서 배열로 만들어줘.
+                    5. 복수 마킹(2개 이상 칠해짐)은 무조건 0으로 처리.
 
                     [반환 형식]
                     절대 다른 말이나 마크다운(\`\`\`json 등)을 붙이지 말고, 아래와 같은 순수 JSON 텍스트 하나만 반환해!
@@ -729,7 +726,7 @@
                 
                 const examData = getExamData(selectedUnit);
                 const correctAnswers = examData.objective || [];
-                const objScores = examData.objectiveScores || Array(correctAnswers.length).fill(1); // 🚨 설정된 배점 가져오기 (없으면 1점)
+                const objScores = examData.objectiveScores || Array(correctAnswers.length).fill(1);
                 const totalQs = correctAnswers.length > 0 ? correctAnswers.length : 20;
 
                 for (let i = 0; i < images.length; i++) {
@@ -749,14 +746,13 @@
                             const correctAns = correctAnswers.length > idx ? correctAnswers[idx] : 0;
                             const isCorrect = correctAns !== 0 && ans === correctAns;
                             
-                            // 🚨 점수 합산: 무조건 1점이 아니라, 설정된 배점(objScores)을 더합니다!
+                            // 🚨 객관식 배점: 설정된 배점(기본 1점)을 합산! 100점 만점 환산 방식 제거.
                             if (isCorrect && ans !== 0) {
                                 score += objScores.length > idx && objScores[idx] !== undefined ? parseFloat(objScores[idx]) : 1; 
                             }
                             return { question: idx + 1, studentAnswer: ans || 0, correctAnswer: correctAns, isCorrect };
                         });
 
-                        // 🚨 소수점 배점을 대비하여 소수점 첫째자리까지만 안전하게 표시
                         const objectiveScore = Number(score.toFixed(1)); 
                         const subjectiveScores = Array(examData.subjective.length).fill(0);
                         const totalScore = objectiveScore;
@@ -816,9 +812,13 @@
                 if (hasNewData) setView('results');
             };
 
+            // 🚨 필터 로직 개선: 업로드 탭에서 선택한 시험지(selectedUnit)의 결과만 보이도록 강제 필터링하여 혼란 방지
             const filteredResults = useMemo(() => {
-                return results.filter(r => r.name.includes(searchTerm) || (r.school && r.school.includes(searchTerm)));
-            }, [results, searchTerm]);
+                return results.filter(r => 
+                    r.unit === selectedUnit && 
+                    (r.name.includes(searchTerm) || (r.school && r.school.includes(searchTerm)))
+                );
+            }, [results, searchTerm, selectedUnit]);
             
             const unsentFilteredResults = useMemo(() => {
                 return filteredResults.filter(r => !r.isSentToSheet);
@@ -826,7 +826,6 @@
 
             const isAllSelected = unsentFilteredResults.length > 0 && unsentFilteredResults.every(r => selectedResultIds.includes(r.id));
 
-            // 선택 항목 삭제 기능 
             const deleteSelectedResults = async () => {
                 if (selectedResultIds.length === 0) return;
                 if (!confirm(`선택한 ${selectedResultIds.length}명의 데이터를 정말 삭제하시겠습니까?\n(클라우드 DB 및 구글 시트에서도 삭제됩니다.)`)) return;
@@ -855,7 +854,6 @@
                 }
             };
 
-            // 개별 행 데이터 삭제 버튼 기능 
             const deleteSingleResult = async (id) => {
                 if (!confirm("이 학생의 데이터를 정말 삭제하시겠습니까?")) return;
                 setIsProcessing(true);
@@ -1138,12 +1136,16 @@
                                 </div>
                             )}
 
+                            {/* 🚨 패딩을 줄여 표의 세로 길이를 압축한 결과 탭 */}
                             {view === 'results' && (
                                 <div className="space-y-8 animate-in">
                                     <div className="flex flex-col sm:flex-row justify-between items-center gap-4 px-2">
                                         <div className="text-center sm:text-left">
-                                            <h2 className="font-black text-3xl text-slate-800">채점 리포트</h2>
-                                            <p className="text-sm text-slate-400 font-bold mt-1 uppercase tracking-widest">Total {results.length} results processed</p>
+                                            {/* 🚨 혼란을 방지하기 위해 현재 보고 있는 시험지 이름을 명확히 표시 */}
+                                            <h2 className="font-black text-3xl text-slate-800">
+                                                채점 리포트 <span className="text-lg text-indigo-600 ml-2">[{selectedUnit}]</span>
+                                            </h2>
+                                            <p className="text-sm text-slate-400 font-bold mt-1 uppercase tracking-widest">Total {filteredResults.length} results shown</p>
                                         </div>
                                         <div className="flex gap-3 w-full sm:w-auto items-center flex-wrap justify-center sm:justify-end">
                                             <input 
@@ -1206,7 +1208,7 @@
                                                 </thead>
                                                 <tbody className="divide-y divide-slate-50">
                                                     {filteredResults.length === 0 ? (
-                                                        <tr><td colSpan="8" className="p-10 text-center text-slate-300 italic font-bold">검색된 학생 데이터가 없거나 아직 채점되지 않았습니다.</td></tr>
+                                                        <tr><td colSpan="8" className="p-10 text-center text-slate-400 font-bold">이 시험지에 대한 채점 결과가 없습니다. (과거 결과는 [삭제]하거나 [시험지 관리]에서 확인하세요)</td></tr>
                                                     ) : (
                                                         filteredResults.map(r => {
                                                             const examData = getExamData(r.unit);
@@ -1214,7 +1216,7 @@
                                                             const subjectiveSum = r.subjectiveScores ? r.subjectiveScores.reduce((a,b)=>a+b, 0) : 0;
                                                             const needsAttention = r.name === "이름 입력 필요" || (hasSubjective && subjectiveSum === 0);
 
-                                                            // 디스플레이용으로 무조건 20문항 이하로 자르기
+                                                            // 🚨 최대 20번 강제 제한 (안전 보장)
                                                             const displayCount = Math.min(examData.objective.length || 20, 20);
 
                                                             return (
@@ -1259,8 +1261,8 @@
                                                                                     <tr className="bg-slate-50 text-slate-400 border-b border-slate-100">
                                                                                         <td className="px-0.5 py-0.5 border-r border-slate-100">문항</td>
                                                                                         {r.details && r.details.length > 0 
-                                                                                            ? r.details.slice(0, displayCount).map((d, i) => <td key={'q'+i} className="px-1.5 py-0.5 border-r border-slate-100">{d?.question || (i + 1)}</td>) 
-                                                                                            : Array.from({length: displayCount}).map((_, i) => <td key={'qe'+i} className="px-1.5 py-0.5 border-r border-slate-100">{i + 1}</td>)}
+                                                                                            ? r.details.slice(0, displayCount).map((d, i) => <td key={'q'+i} className="px-1 py-0.5 border-r border-slate-100">{d?.question || (i + 1)}</td>) 
+                                                                                            : Array.from({length: displayCount}).map((_, i) => <td key={'qe'+i} className="px-1 py-0.5 border-r border-slate-100">{i + 1}</td>)}
                                                                                     </tr>
                                                                                     <tr className="text-slate-700">
                                                                                         <td className="px-0.5 py-0.5 border-r border-slate-100 bg-slate-50 text-slate-400">학생답</td>
@@ -1269,12 +1271,12 @@
                                                                                                 const ansVal = d?.studentAnswer !== undefined ? d.studentAnswer : (typeof d === 'number' ? d : 0);
                                                                                                 const isCorr = d?.isCorrect !== undefined ? d.isCorrect : true; 
                                                                                                 return (
-                                                                                                    <td key={'a'+i} className={`px-1.5 py-0.5 border-r border-slate-100 font-black ${isCorr && ansVal !== 0 ? 'text-blue-600' : 'text-red-500 bg-red-50'}`}>
+                                                                                                    <td key={'a'+i} className={`px-1 py-0.5 border-r border-slate-100 font-black ${isCorr && ansVal !== 0 ? 'text-blue-600' : 'text-red-500 bg-red-50'}`}>
                                                                                                         {ansVal === 0 ? '-' : ansVal}
                                                                                                     </td>
                                                                                                 );
                                                                                             }) 
-                                                                                            : Array.from({length: displayCount}).map((_, i) => <td key={'ae'+i} className="px-1.5 py-0.5 border-r border-slate-100">-</td>)}
+                                                                                            : Array.from({length: displayCount}).map((_, i) => <td key={'ae'+i} className="px-1 py-0.5 border-r border-slate-100">-</td>)}
                                                                                     </tr>
                                                                                 </tbody>
                                                                             </table>
@@ -1486,14 +1488,13 @@
                                                 </div>
                                             </div>
                                             
-                                            {/* 🚨 새롭게 개선된 정답 및 배점 테이블 입력 UI */}
+                                            {/* 정답 및 배점 테이블 입력 UI */}
                                             <div className="bg-white p-6 rounded-[1.5rem] border border-indigo-50 shadow-sm overflow-x-auto custom-scrollbar">
                                                 <div className="flex items-center gap-2 mb-4">
                                                     <Icon name="Info" size={16} className="text-indigo-400" />
                                                     <label className="text-xs font-black text-slate-400 uppercase tracking-widest">객관식 정답 및 배점 설정</label>
                                                 </div>
                                                 <div className="min-w-max flex flex-col gap-2">
-                                                    {/* 문항 번호 줄 */}
                                                     <div className="flex items-center gap-2">
                                                         <div className="w-16 shrink-0 text-right pr-2 text-[10px] font-black text-slate-400">문항</div>
                                                         {newExamAnswers.map((_, idx) => (
@@ -1502,7 +1503,6 @@
                                                             </div>
                                                         ))}
                                                     </div>
-                                                    {/* 정답 입력 줄 */}
                                                     <div className="flex items-center gap-2">
                                                         <div className="w-16 shrink-0 text-right pr-2 text-xs font-black text-indigo-500">정답</div>
                                                         {newExamAnswers.map((ans, idx) => (
@@ -1515,7 +1515,6 @@
                                                             />
                                                         ))}
                                                     </div>
-                                                    {/* 배점 입력 줄 */}
                                                     <div className="flex items-center gap-2 mt-1">
                                                         <div className="w-16 shrink-0 text-right pr-2 text-xs font-black text-rose-400">배점</div>
                                                         {newExamObjScores.map((score, idx) => (
@@ -1576,7 +1575,6 @@
                                                                 setNewExamSchool(examData.school);
                                                                 setNewExamLength(examData.objective.length);
                                                                 setNewExamAnswers([...examData.objective]);
-                                                                // 🚨 수정 모드 진입 시 배점 데이터도 가져옴
                                                                 setNewExamObjScores(examData.objectiveScores ? [...examData.objectiveScores] : Array(examData.objective.length).fill(1));
                                                                 setNewExamSubLength(examData.subjective.length);
                                                                 setNewExamSubScores([...examData.subjective]);
@@ -1776,7 +1774,6 @@
         }
       };
 
-      // 개별 삭제/다중 삭제 로직 
       window.deleteResultsFromFirebase = async (ids) => {
           try {
               for (const id of ids) {

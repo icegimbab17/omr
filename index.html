@@ -715,12 +715,13 @@
                         let score = 0;
                         const totalQs = correctAnswers.length;
                         
-                        const details = (analysis.answers || []).map((ans, idx) => {
-                            if (idx >= totalQs) return null;
-                            const isCorrect = ans === correctAnswers[idx];
+                        // 🚨 수정된 로직: AI가 값을 덜 찾아도 표가 깨지지 않도록, 전체 문항 수(totalQs)를 기준으로 확실하게 매핑합니다.
+                        const details = correctAnswers.map((correctAns, idx) => {
+                            const ans = (analysis.answers && analysis.answers.length > idx) ? analysis.answers[idx] : 0;
+                            const isCorrect = ans === correctAns;
                             if (isCorrect) score += (100 / totalQs);
-                            return { question: idx + 1, studentAnswer: ans, correctAnswer: correctAnswers[idx], isCorrect };
-                        }).filter(Boolean);
+                            return { question: idx + 1, studentAnswer: ans || 0, correctAnswer: correctAns, isCorrect };
+                        });
 
                         const objectiveScore = Math.round(score);
                         const subjectiveScores = Array(examData.subjective.length).fill(0);
@@ -794,10 +795,10 @@
 
             const isAllSelected = unsentFilteredResults.length > 0 && unsentFilteredResults.every(r => selectedResultIds.includes(r.id));
 
-            // 선택 항목 삭제 기능
+            // 🚨 선택 항목 삭제 기능 (구글 시트 연동 삭제 추가)
             const deleteSelectedResults = async () => {
                 if (selectedResultIds.length === 0) return;
-                if (!confirm(`선택한 ${selectedResultIds.length}명의 데이터를 정말 삭제하시겠습니까?\n(클라우드 DB에서도 삭제됩니다.)`)) return;
+                if (!confirm(`선택한 ${selectedResultIds.length}명의 데이터를 정말 삭제하시겠습니까?\n(클라우드 DB 및 구글 시트에서도 삭제됩니다.)`)) return;
 
                 setIsProcessing(true);
                 try {
@@ -805,10 +806,28 @@
                     if (window.deleteResultsFromFirebase) {
                         await window.deleteResultsFromFirebase(selectedResultIds);
                     }
+
+                    // 🚨 구글 시트에서 완전 삭제하도록 GAS 서버에 신호 전송
+                    if (gasUrl) {
+                        const dataToDelete = results.filter(r => selectedResultIds.includes(r.id) && r.isSentToSheet);
+                        if (dataToDelete.length > 0) {
+                            const deletePayload = dataToDelete.map(r => ({ unit: r.unit, name: r.name, timestamp: r.timestamp }));
+                            try {
+                                await fetch(gasUrl, { 
+                                    method: 'POST', 
+                                    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                                    body: JSON.stringify({ action: 'delete_omr', data: deletePayload }) 
+                                });
+                            } catch (e) {
+                                console.error("구글 시트 연동 삭제 중 오류:", e);
+                            }
+                        }
+                    }
+
                     // 로컬 UI 상태에서 삭제
                     setResults(prev => prev.filter(r => !selectedResultIds.includes(r.id)));
                     setSelectedResultIds([]);
-                    setModal({ message: "선택한 데이터가 성공적으로 삭제되었습니다.", type: 'success' });
+                    setModal({ message: "선택한 데이터가 구글 시트와 클라우드에서 성공적으로 삭제되었습니다.", type: 'success' });
                 } catch (error) {
                     setModal({ message: "삭제 중 오류가 발생했습니다.", type: 'error' });
                 } finally {
@@ -1075,7 +1094,6 @@
                                 </div>
                             )}
 
-                            {/* 🚨 패딩을 줄여 표의 세로 길이를 압축한 결과 탭 (원본 유지 완료) */}
                             {view === 'results' && (
                                 <div className="space-y-8 animate-in">
                                     <div className="flex flex-col sm:flex-row justify-between items-center gap-4 px-2">
@@ -1193,15 +1211,16 @@
                                                                                 <tbody>
                                                                                     <tr className="bg-slate-50 text-slate-400 border-b border-slate-100">
                                                                                         <td className="px-0.5 py-0.5 border-r border-slate-100">문항</td>
-                                                                                        {r.details.map(d => <td key={d.question} className="px-1 py-0.5 border-r border-slate-100">{d.question}</td>)}
+                                                                                        {/* 🚨 데이터가 없을 때도 깨지지 않고 렌더링되도록 수정 */}
+                                                                                        {r.details && r.details.length > 0 ? r.details.map(d => <td key={d.question} className="px-1 py-0.5 border-r border-slate-100">{d.question}</td>) : <td className="px-1 py-0.5 border-r border-slate-100">데이터 없음</td>}
                                                                                     </tr>
                                                                                     <tr className="text-slate-700">
                                                                                         <td className="px-0.5 py-0.5 border-r border-slate-100 bg-slate-50 text-slate-400">학생답</td>
-                                                                                        {r.details.map(d => (
+                                                                                        {r.details && r.details.length > 0 ? r.details.map(d => (
                                                                                             <td key={d.question} className={`px-1 py-0.5 border-r border-slate-100 ${d.isCorrect ? 'text-indigo-600' : 'text-red-500 bg-red-50'}`}>
                                                                                                 {d.studentAnswer}
                                                                                             </td>
-                                                                                        ))}
+                                                                                        )) : <td className="px-1 py-0.5 border-r border-slate-100">-</td>}
                                                                                     </tr>
                                                                                 </tbody>
                                                                             </table>
@@ -1671,6 +1690,7 @@
         }
       };
 
+      // 개별 삭제/다중 삭제 로직 추가 완료
       window.deleteResultsFromFirebase = async (ids) => {
           try {
               for (const id of ids) {

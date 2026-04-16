@@ -14,8 +14,6 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <!-- 그래프 위에 점수 숫자를 표시하기 위한 플러그인 CDN 추가 -->
     <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.0.0"></script>
-    <!-- OpenCV.js CDN -->
-    <script async src="https://docs.opencv.org/4.x/opencv.js"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Pretendard:wght@400;600;700;900&display=swap');
         body { font-family: 'Pretendard', sans-serif; -webkit-tap-highlight-color: transparent; }
@@ -476,7 +474,7 @@
 
             const getExamData = (unit) => {
                 const data = answerKeys[unit];
-                // 🚨 빈칸 에러 방지: 데이터가 없더라도 기본값을 반환하여 표가 무조건 렌더링되게 방어!
+                // 빈칸 에러 방지: 데이터가 없더라도 기본값을 반환하여 표가 무조건 렌더링되게 방어!
                 if (!data) return { school: "", objective: Array(20).fill(0), subjective: [] };
                 if (Array.isArray(data)) return { school: "", objective: data, subjective: [] };
                 return {
@@ -581,8 +579,8 @@
                 e.target.value = ''; // 입력창 초기화
             };
 
-            // 🚨 제미나이(AI) 기반 이미지 분석 로직 복구 (3.0 -> 2.5 우회 탑재)
-            const analyzeImage = async (imageObj) => {
+            // 🚨 제미나이(AI) 기반 이미지 분석 로직 복구 (3.0 -> 2.5 자동 우회 탑재 및 문항수 강제 가이드)
+            const analyzeImage = async (imageObj, expectedQCount) => {
                 const imageData = await new Promise((resolve) => {
                     const reader = new FileReader();
                     reader.onload = () => {
@@ -593,26 +591,29 @@
                     reader.readAsDataURL(imageObj.file);
                 });
 
+                // 🚨 AI가 엉뚱한 곳(학년, 반 등)을 1번 문제로 착각하거나, 빈칸을 답으로 찍는 것을 완벽 차단하는 강력한 지시문
                 const systemPrompt = `
-                    너는 OMR 판독 전문가야. 첨부된 이미지에서 파란색 배경 영역의 '객관식 문항 마킹' 부분만 집중해서 판독해.
-                    ${usePerspectiveCorrection ? '이미지의 기울기가 심하므로 강력한 원근 보정(Perspective Correction)을 실시하여 정확한 마킹 위치를 파악해.' : '표준적인 각도에서 마킹을 판독해.'}
+                    너는 최고의 시각 지능을 가진 OMR 판독 전문가야.
+                    첨부된 OMR 카드 이미지에서 '객관식 문항 마킹'을 정확하게 읽어내야 해.
+                    ${usePerspectiveCorrection ? '이미지가 기울어졌거나 왜곡이 있으니 시각적 원근 보정을 염두에 두고 판독해.' : '표준적인 각도에서 마킹을 판독해.'}
                     
-                    [절대 준수 규칙]
-                    1. 학생 이름, 학교명, 학년, 반, 번호 등 텍스트나 손글씨는 완벽히 무시해! (절대 읽지 마)
-                    2. 우측 주관식 빈칸 영역도 무시해.
-                    3. 오직 1번 문항부터 시작하는 '객관식 마킹(1~5번 중 칠해진 곳)'만 읽어서 배열 형태로 만들어.
-                    4. 문항 번호는 세로(열) 방향으로 읽어야 해 (1번 밑에 2번, 11번 밑에 12번 방식).
-                    5. 마킹이 아예 비어있거나, 2개 이상 칠해져 판별할 수 없는 문항은 무조건 숫자 '0'으로 처리해.
-                    6. 마크다운(\`\`\`json 등), 생각 과정, 설명 따위는 일절 넣지 마. 오직 아래와 같은 순수 JSON 객체 1개만 반환해.
+                    [🚨 매우 중요한 위치 및 판독 가이드 - 이것을 반드시 지켜!]
+                    1. 위치 주의 (학년/반/번호 제외): 이미지의 가장 왼쪽 열에 있는 연한 배경의 '학번, 반, 번호' 마킹 영역은 절대로 문제의 답안이 아니야! 이 부분을 1번 문항으로 착각하면 안 돼.
+                    2. 객관식 영역 (진한 파란색 배경): 진짜 객관식 문제들은 "진한 파란색 세로 배경"이 칠해진 곳에만 있어.
+                    3. 까만색 컴싸 마킹만 인식: 파란색 테두리나 배경을 마킹으로 착각하지 마. 까맣게 칠해진 동그라미(1~5)만 답으로 인정해.
+                    4. 🎯 문항 수 제한 (핵심): 이 시험지의 객관식 문항은 총 **${expectedQCount}문제**야! 무조건 1번부터 ${expectedQCount}번까지만 판독해서 정확히 ${expectedQCount}개의 숫자가 담긴 배열을 만들어 줘.
+                    5. 빈칸/중복 마킹: 빈칸이나 2개 이상 마킹된 곳은 0으로 처리해.
+                    6. 마크다운 기호(\`\`\`json 등)나 설명 없이, 오직 아래 형태의 순수 JSON 텍스트만 반환해.
 
-                    반환 형식:
+                    반환 형식 예시 (총 ${expectedQCount}문제인 경우):
                     {
-                        "answers": [4, 1, 2, 4, 2, 3, 1, 1, 4, 3, 0, 4] 
+                        "answers": [4, 1, 2, 4, 2, 3, 1, 1, 4, 3, 0, 0, 0, 0] 
                     }
                 `;
 
                 const activeApiKey = userApiKey.trim();
 
+                // 3.0-flash, 2.5-flash 순서로 자동 우회되도록 설정
                 const fetchWithRetry = async (retries = 4, delay = 1000) => {
                     try {
                         const response = await fetch(gasUrl, {
@@ -704,6 +705,11 @@
                 setIsProcessing(true);
                 let hasNewData = false;
                 
+                // 설정된 시험지의 객관식 문항 수 가져오기
+                const examData = getExamData(selectedUnit);
+                const correctAnswers = examData.objective || [];
+                const totalQs = correctAnswers.length > 0 ? correctAnswers.length : 20;
+
                 for (let i = 0; i < images.length; i++) {
                     const img = images[i];
                     if (img.status === 'success') continue;
@@ -711,29 +717,28 @@
                     setImages(prev => prev.map(item => item.id === img.id ? { ...item, status: 'processing', errorMessage: '' } : item));
                     
                     try {
-                        const analysis = await analyzeImage(img);
-                        const examData = getExamData(selectedUnit);
-                        const correctAnswers = examData.objective || [];
+                        // 🚨 AI에게 현재 시험지의 문항수(totalQs)를 명확히 전달하여 쓸데없는 곳을 읽지 않도록 제한
+                        const analysis = await analyzeImage(img, totalQs);
                         let score = 0;
                         
-                        // 🚨 '데이터 없음' 철벽 방어 로직: AI가 값을 덜 가져와도 기본 문항수 20칸 무조건 강제 할당
                         const aiAnswers = analysis.answers || [];
-                        const totalQs = Math.max(correctAnswers.length, aiAnswers.length, 20); 
 
+                        // 🚨 무조건 설정된 정답 개수(totalQs)만큼의 표를 생성하여 빈칸/깨짐 원천 차단
                         const details = Array.from({ length: totalQs }).map((_, idx) => {
                             const ans = aiAnswers.length > idx ? aiAnswers[idx] : 0;
                             const correctAns = correctAnswers.length > idx ? correctAnswers[idx] : 0;
                             const isCorrect = correctAns !== 0 && ans === correctAns;
                             
+                            // 🚨 객관식 점수는 무조건 1개 맞힐 때마다 1점씩 가산!
                             if (isCorrect && ans !== 0) {
-                                score += (100 / (correctAnswers.length || totalQs));
+                                score += 1; 
                             }
                             return { question: idx + 1, studentAnswer: ans || 0, correctAnswer: correctAns, isCorrect };
                         });
 
-                        const objectiveScore = Math.round(score);
+                        const objectiveScore = Math.round(score); // 1점씩 더한 값이 그대로 객관식 총점
                         const subjectiveScores = Array(examData.subjective.length).fill(0);
-                        const totalScore = objectiveScore;
+                        const totalScore = objectiveScore; // 주관식 합산 전 총점
 
                         const parsedName = extractStudentName(img.fileName);
                         const parsedSchool = examData.school || selectedUnit.split(/[ _]/)[0];
@@ -803,7 +808,7 @@
 
             const isAllSelected = unsentFilteredResults.length > 0 && unsentFilteredResults.every(r => selectedResultIds.includes(r.id));
 
-            // 🚨 선택된 전체 항목 삭제 기능 (구글 시트 연동 삭제)
+            // 선택 항목 삭제 기능 (구글 시트 연동 삭제)
             const deleteSelectedResults = async () => {
                 if (selectedResultIds.length === 0) return;
                 if (!confirm(`선택한 ${selectedResultIds.length}명의 데이터를 정말 삭제하시겠습니까?\n(클라우드 DB 및 구글 시트에서도 삭제됩니다.)`)) return;
@@ -832,7 +837,7 @@
                 }
             };
 
-            // 🚨 개별 행 데이터 삭제 버튼 기능 (구글 시트 연동)
+            // 개별 행 데이터 삭제 버튼 기능 (구글 시트 연동)
             const deleteSingleResult = async (id) => {
                 if (!confirm("이 학생의 데이터를 정말 삭제하시겠습니까?")) return;
                 setIsProcessing(true);
@@ -1179,8 +1184,7 @@
                                                         <th className="py-2 px-1 text-[11px] font-black text-slate-400 uppercase tracking-[0.2em] text-center w-[70px]">객관식</th>
                                                         <th className="py-2 px-1 text-[11px] font-black text-slate-400 uppercase tracking-[0.2em] text-center w-[70px]">주관식</th>
                                                         <th className="py-2 px-1 text-[11px] font-black text-slate-400 uppercase tracking-[0.2em] text-center w-[90px]">최종 총점</th>
-                                                        {/* 🚨 버튼 영역 명칭 변경 */}
-                                                        <th className="py-2 px-1 text-[11px] font-black text-slate-400 uppercase tracking-[0.2em] text-center w-[90px]">주관식 입력</th>
+                                                        <th className="py-2 px-1 text-[11px] font-black text-slate-400 uppercase tracking-[0.2em] text-center w-[90px]">수정/개별삭제</th>
                                                     </tr>
                                                 </thead>
                                                 <tbody className="divide-y divide-slate-50">
@@ -1232,12 +1236,12 @@
                                                                         <div className="flex flex-wrap gap-0.5 justify-center max-w-full overflow-x-auto custom-scrollbar pb-0.5">
                                                                             <table className="border-collapse text-[9px] font-bold text-center w-full">
                                                                                 <tbody>
-                                                                                    {/* 🚨 데이터 없음 에러 방지를 위해, 무조건 빈 20칸이라도 채워서 그리도록 방어막 설치 */}
                                                                                     <tr className="bg-slate-50 text-slate-400 border-b border-slate-100">
                                                                                         <td className="px-0.5 py-0.5 border-r border-slate-100">문항</td>
+                                                                                        {/* 🚨 설정된 학교 정답 수(혹은 20)에 맞춰 동적으로 컬럼 표시 */}
                                                                                         {r.details && r.details.length > 0 
                                                                                             ? r.details.map((d, i) => <td key={'q'+i} className="px-1 py-0.5 border-r border-slate-100">{d?.question || (i + 1)}</td>) 
-                                                                                            : Array.from({length: 20}).map((_, i) => <td key={'qe'+i} className="px-1 py-0.5 border-r border-slate-100">{i + 1}</td>)}
+                                                                                            : examData.objective.map((_, i) => <td key={'qe'+i} className="px-1 py-0.5 border-r border-slate-100">{i + 1}</td>)}
                                                                                     </tr>
                                                                                     <tr className="text-slate-700">
                                                                                         <td className="px-0.5 py-0.5 border-r border-slate-100 bg-slate-50 text-slate-400">학생답</td>
@@ -1245,13 +1249,14 @@
                                                                                             ? r.details.map((d, i) => {
                                                                                                 const ansVal = d?.studentAnswer !== undefined ? d.studentAnswer : (typeof d === 'number' ? d : 0);
                                                                                                 const isCorr = d?.isCorrect !== undefined ? d.isCorrect : true; 
+                                                                                                // 🚨 정답일 경우 완벽한 파란색(text-blue-600), 오답일 경우 빨간색(text-red-500 + 연한 빨간배경) 적용
                                                                                                 return (
-                                                                                                    <td key={'a'+i} className={`px-1 py-0.5 border-r border-slate-100 ${isCorr ? 'text-indigo-600' : 'text-red-500 bg-red-50'}`}>
-                                                                                                        {ansVal}
+                                                                                                    <td key={'a'+i} className={`px-1 py-0.5 border-r border-slate-100 font-black ${isCorr && ansVal !== 0 ? 'text-blue-600' : 'text-red-500 bg-red-50'}`}>
+                                                                                                        {ansVal === 0 ? '-' : ansVal}
                                                                                                     </td>
                                                                                                 );
                                                                                             }) 
-                                                                                            : Array.from({length: 20}).map((_, i) => <td key={'ae'+i} className="px-1 py-0.5 border-r border-slate-100">-</td>)}
+                                                                                            : examData.objective.map((_, i) => <td key={'ae'+i} className="px-1 py-0.5 border-r border-slate-100">-</td>)}
                                                                                     </tr>
                                                                                 </tbody>
                                                                             </table>
@@ -1265,7 +1270,6 @@
                                                                         {r.totalScore}<small className="text-[9px] ml-0.5 opacity-50">점</small>
                                                                     </span>
                                                                 </td>
-                                                                {/* 🚨 버튼 명칭 직관적으로 개선 & 색상 분리 적용 완료 */}
                                                                 <td className="py-1.5 px-1 text-center">
                                                                     <div className="flex flex-col items-center justify-center gap-1.5">
                                                                         <button onClick={() => setEditingResultId(r.id)} className={`px-2 py-1.5 rounded-md text-[10px] font-black transition-all flex items-center justify-center gap-1 shadow-sm w-full ${needsAttention ? 'bg-pink-500 hover:bg-pink-600 text-white animate-pulse shadow-pink-200' : 'bg-indigo-50 hover:bg-indigo-600 text-indigo-600 hover:text-white'}`}>

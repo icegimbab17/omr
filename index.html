@@ -474,11 +474,12 @@
 
             const getExamData = (unit) => {
                 const data = answerKeys[unit];
-                if (!data) return { school: "", objective: [], subjective: [] };
+                // 🚨 빈칸 에러 방지: 데이터가 없더라도 기본값을 반환하여 표가 무조건 렌더링되게 방어!
+                if (!data) return { school: "", objective: Array(20).fill(0), subjective: [] };
                 if (Array.isArray(data)) return { school: "", objective: data, subjective: [] };
                 return {
                     school: data.school || "",
-                    objective: data.objective || [],
+                    objective: data.objective || Array(20).fill(0),
                     subjective: data.subjective || []
                 };
             };
@@ -578,7 +579,7 @@
                 e.target.value = ''; // 입력창 초기화
             };
 
-            // 🚨 제미나이(AI) 기반 이미지 분석 로직 원상 복구 및 다중 모델(3.0 -> 2.5) 세팅 완료
+            // 🚨 제미나이(AI) 기반 이미지 분석 로직 복구 (3.0 -> 2.5 우회 탑재)
             const analyzeImage = async (imageObj) => {
                 const imageData = await new Promise((resolve) => {
                     const reader = new FileReader();
@@ -610,7 +611,6 @@
 
                 const activeApiKey = userApiKey.trim();
 
-                // 🚨 1.5에서 에러가 많이 발생한다고 하셔서 3.0-flash, 2.5-flash 순서로 자동 우회되도록 설정 완료!
                 const fetchWithRetry = async (retries = 4, delay = 1000) => {
                     try {
                         const response = await fetch(gasUrl, {
@@ -711,15 +711,21 @@
                     try {
                         const analysis = await analyzeImage(img);
                         const examData = getExamData(selectedUnit);
-                        const correctAnswers = examData.objective;
+                        const correctAnswers = examData.objective || [];
                         let score = 0;
-                        const totalQs = correctAnswers.length;
                         
-                        // 🚨 수정된 로직: AI가 값을 덜 찾아도 표가 깨지지 않도록, 전체 문항 수(totalQs)를 기준으로 확실하게 매핑합니다.
-                        const details = correctAnswers.map((correctAns, idx) => {
-                            const ans = (analysis.answers && analysis.answers.length > idx) ? analysis.answers[idx] : 0;
-                            const isCorrect = ans === correctAns;
-                            if (isCorrect) score += (100 / totalQs);
+                        // 🚨 '데이터 없음' 철벽 방어 로직: AI가 값을 덜 가져와도 기본 문항수 20칸 무조건 강제 할당
+                        const aiAnswers = analysis.answers || [];
+                        const totalQs = Math.max(correctAnswers.length, aiAnswers.length, 20); 
+
+                        const details = Array.from({ length: totalQs }).map((_, idx) => {
+                            const ans = aiAnswers.length > idx ? aiAnswers[idx] : 0;
+                            const correctAns = correctAnswers.length > idx ? correctAnswers[idx] : 0;
+                            const isCorrect = correctAns !== 0 && ans === correctAns;
+                            
+                            if (isCorrect) {
+                                score += (100 / (correctAnswers.length || totalQs));
+                            }
                             return { question: idx + 1, studentAnswer: ans || 0, correctAnswer: correctAns, isCorrect };
                         });
 
@@ -795,39 +801,52 @@
 
             const isAllSelected = unsentFilteredResults.length > 0 && unsentFilteredResults.every(r => selectedResultIds.includes(r.id));
 
-            // 🚨 선택 항목 삭제 기능 (구글 시트 연동 삭제 추가)
+            // 🚨 선택된 전체 항목 삭제 기능 (구글 시트 연동 삭제)
             const deleteSelectedResults = async () => {
                 if (selectedResultIds.length === 0) return;
                 if (!confirm(`선택한 ${selectedResultIds.length}명의 데이터를 정말 삭제하시겠습니까?\n(클라우드 DB 및 구글 시트에서도 삭제됩니다.)`)) return;
 
                 setIsProcessing(true);
                 try {
-                    // Firebase에서 삭제
                     if (window.deleteResultsFromFirebase) {
                         await window.deleteResultsFromFirebase(selectedResultIds);
                     }
-
-                    // 🚨 구글 시트에서 완전 삭제하도록 GAS 서버에 신호 전송
                     if (gasUrl) {
                         const dataToDelete = results.filter(r => selectedResultIds.includes(r.id) && r.isSentToSheet);
                         if (dataToDelete.length > 0) {
                             const deletePayload = dataToDelete.map(r => ({ unit: r.unit, name: r.name, timestamp: r.timestamp }));
                             try {
-                                await fetch(gasUrl, { 
-                                    method: 'POST', 
-                                    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-                                    body: JSON.stringify({ action: 'delete_omr', data: deletePayload }) 
-                                });
-                            } catch (e) {
-                                console.error("구글 시트 연동 삭제 중 오류:", e);
-                            }
+                                await fetch(gasUrl, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ action: 'delete_omr', data: deletePayload }) });
+                            } catch (e) { console.error("구글 시트 연동 삭제 중 오류:", e); }
                         }
                     }
-
-                    // 로컬 UI 상태에서 삭제
                     setResults(prev => prev.filter(r => !selectedResultIds.includes(r.id)));
                     setSelectedResultIds([]);
                     setModal({ message: "선택한 데이터가 구글 시트와 클라우드에서 성공적으로 삭제되었습니다.", type: 'success' });
+                } catch (error) {
+                    setModal({ message: "삭제 중 오류가 발생했습니다.", type: 'error' });
+                } finally {
+                    setIsProcessing(false);
+                }
+            };
+
+            // 🚨 개별 행 데이터 삭제 버튼 기능 (구글 시트 연동)
+            const deleteSingleResult = async (id) => {
+                if (!confirm("이 학생의 데이터를 정말 삭제하시겠습니까?")) return;
+                setIsProcessing(true);
+                try {
+                    const resultToDelete = results.find(r => r.id === id);
+                    if (window.deleteResultsFromFirebase) {
+                        await window.deleteResultsFromFirebase([id]);
+                    }
+                    if (gasUrl && resultToDelete && resultToDelete.isSentToSheet) {
+                        try {
+                            await fetch(gasUrl, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ action: 'delete_omr', data: [{ unit: resultToDelete.unit, name: resultToDelete.name, timestamp: resultToDelete.timestamp }] }) });
+                        } catch (e) { console.error("개별 삭제 시트 연동 오류:", e); }
+                    }
+                    setResults(prev => prev.filter(r => r.id !== id));
+                    setSelectedResultIds(prev => prev.filter(selectedId => selectedId !== id));
+                    setModal({ message: "데이터가 삭제되었습니다.", type: 'success' });
                 } catch (error) {
                     setModal({ message: "삭제 중 오류가 발생했습니다.", type: 'error' });
                 } finally {
@@ -1094,6 +1113,7 @@
                                 </div>
                             )}
 
+                            {/* 🚨 패딩을 줄여 표의 세로 길이를 압축한 결과 탭 (원본 유지) */}
                             {view === 'results' && (
                                 <div className="space-y-8 animate-in">
                                     <div className="flex flex-col sm:flex-row justify-between items-center gap-4 px-2">
@@ -1109,12 +1129,12 @@
                                                 onChange={(e) => setSearchTerm(e.target.value)}
                                                 className="border-2 border-slate-200 px-4 py-2.5 rounded-xl text-sm font-bold outline-none focus:border-indigo-500 w-full sm:w-48 bg-white shadow-sm"
                                             />
-                                            {/* 🚨 선택 항목 삭제 버튼 추가 */}
+                                            {/* 일괄 삭제 버튼 */}
                                             <button 
                                                 onClick={deleteSelectedResults} 
                                                 disabled={selectedResultIds.length === 0 || isProcessing} 
                                                 className="bg-rose-50 text-rose-600 border border-rose-200 px-4 py-3 rounded-xl text-sm font-black hover:bg-rose-100 transition-all flex items-center justify-center gap-1 disabled:bg-slate-50 disabled:text-slate-400 disabled:border-slate-200"
-                                                title="선택된 데이터를 DB에서 완전히 삭제합니다"
+                                                title="선택된 데이터를 클라우드 및 시트에서 일괄 삭제합니다"
                                             >
                                                 <Icon name="Trash2" size={16}/> 삭제
                                             </button>
@@ -1157,7 +1177,7 @@
                                                         <th className="py-2 px-1 text-[11px] font-black text-slate-400 uppercase tracking-[0.2em] text-center w-[70px]">객관식</th>
                                                         <th className="py-2 px-1 text-[11px] font-black text-slate-400 uppercase tracking-[0.2em] text-center w-[70px]">주관식</th>
                                                         <th className="py-2 px-1 text-[11px] font-black text-slate-400 uppercase tracking-[0.2em] text-center w-[90px]">최종 총점</th>
-                                                        <th className="py-2 px-1 text-[11px] font-black text-slate-400 uppercase tracking-[0.2em] text-center w-[90px]">주관식/수정</th>
+                                                        <th className="py-2 px-1 text-[11px] font-black text-slate-400 uppercase tracking-[0.2em] text-center w-[120px]">수정 / 개별삭제</th>
                                                     </tr>
                                                 </thead>
                                                 <tbody className="divide-y divide-slate-50">
@@ -1209,18 +1229,26 @@
                                                                         <div className="flex flex-wrap gap-0.5 justify-center max-w-full overflow-x-auto custom-scrollbar pb-0.5">
                                                                             <table className="border-collapse text-[9px] font-bold text-center w-full">
                                                                                 <tbody>
+                                                                                    {/* 🚨 데이터 없음 에러 방지를 위해, 무조건 빈 20칸이라도 채워서 그리도록 방어막 설치 */}
                                                                                     <tr className="bg-slate-50 text-slate-400 border-b border-slate-100">
                                                                                         <td className="px-0.5 py-0.5 border-r border-slate-100">문항</td>
-                                                                                        {/* 🚨 데이터가 없을 때도 깨지지 않고 렌더링되도록 수정 */}
-                                                                                        {r.details && r.details.length > 0 ? r.details.map(d => <td key={d.question} className="px-1 py-0.5 border-r border-slate-100">{d.question}</td>) : <td className="px-1 py-0.5 border-r border-slate-100">데이터 없음</td>}
+                                                                                        {r.details && r.details.length > 0 
+                                                                                            ? r.details.map((d, i) => <td key={'q'+i} className="px-1 py-0.5 border-r border-slate-100">{d?.question || (i + 1)}</td>) 
+                                                                                            : Array.from({length: 20}).map((_, i) => <td key={'qe'+i} className="px-1 py-0.5 border-r border-slate-100">{i + 1}</td>)}
                                                                                     </tr>
                                                                                     <tr className="text-slate-700">
                                                                                         <td className="px-0.5 py-0.5 border-r border-slate-100 bg-slate-50 text-slate-400">학생답</td>
-                                                                                        {r.details && r.details.length > 0 ? r.details.map(d => (
-                                                                                            <td key={d.question} className={`px-1 py-0.5 border-r border-slate-100 ${d.isCorrect ? 'text-indigo-600' : 'text-red-500 bg-red-50'}`}>
-                                                                                                {d.studentAnswer}
-                                                                                            </td>
-                                                                                        )) : <td className="px-1 py-0.5 border-r border-slate-100">-</td>}
+                                                                                        {r.details && r.details.length > 0 
+                                                                                            ? r.details.map((d, i) => {
+                                                                                                const ansVal = d?.studentAnswer !== undefined ? d.studentAnswer : (typeof d === 'number' ? d : 0);
+                                                                                                const isCorr = d?.isCorrect !== undefined ? d.isCorrect : true; 
+                                                                                                return (
+                                                                                                    <td key={'a'+i} className={`px-1 py-0.5 border-r border-slate-100 ${isCorr ? 'text-indigo-600' : 'text-red-500 bg-red-50'}`}>
+                                                                                                        {ansVal}
+                                                                                                    </td>
+                                                                                                );
+                                                                                            }) 
+                                                                                            : Array.from({length: 20}).map((_, i) => <td key={'ae'+i} className="px-1 py-0.5 border-r border-slate-100">-</td>)}
                                                                                     </tr>
                                                                                 </tbody>
                                                                             </table>
@@ -1234,10 +1262,16 @@
                                                                         {r.totalScore}<small className="text-[9px] ml-0.5 opacity-50">점</small>
                                                                     </span>
                                                                 </td>
+                                                                {/* 🚨 행마다 수정 버튼과 함께, 개별 삭제 버튼 탑재 */}
                                                                 <td className="py-1.5 px-1 text-center">
-                                                                    <button onClick={() => setEditingResultId(r.id)} className={`px-2 py-1 rounded-lg text-[10px] font-black transition-all flex items-center justify-center gap-1 mx-auto shadow-sm ${needsAttention ? 'bg-pink-500 hover:bg-pink-600 text-white animate-pulse shadow-pink-200' : 'bg-slate-100 hover:bg-indigo-600 text-slate-500 hover:text-white'}`}>
-                                                                        <Icon name="Edit" size={10}/> {needsAttention ? '입력' : '수정'}
-                                                                    </button>
+                                                                    <div className="flex flex-col items-center justify-center gap-1">
+                                                                        <button onClick={() => setEditingResultId(r.id)} className={`px-2 py-1 rounded-lg text-[10px] font-black transition-all flex items-center justify-center gap-1 shadow-sm w-full ${needsAttention ? 'bg-pink-500 hover:bg-pink-600 text-white animate-pulse shadow-pink-200' : 'bg-slate-100 hover:bg-indigo-600 text-slate-500 hover:text-white'}`}>
+                                                                            <Icon name="Edit" size={10}/> {needsAttention ? '입력' : '수정'}
+                                                                        </button>
+                                                                        <button onClick={() => deleteSingleResult(r.id)} className="px-2 py-1 rounded-lg text-[10px] font-black bg-rose-50 text-rose-500 border border-rose-100 hover:bg-rose-500 hover:text-white transition-all flex items-center justify-center gap-1 shadow-sm w-full">
+                                                                            <Icon name="Trash2" size={10}/> 삭제
+                                                                        </button>
+                                                                    </div>
                                                                 </td>
                                                             </tr>
                                                             );
@@ -1690,7 +1724,7 @@
         }
       };
 
-      // 개별 삭제/다중 삭제 로직 추가 완료
+      // 개별 삭제/다중 삭제 로직 
       window.deleteResultsFromFirebase = async (ids) => {
           try {
               for (const id of ids) {

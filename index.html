@@ -28,12 +28,9 @@
     <div id="root"></div>
 
     <script type="text/babel">
-        // 차트 위에 숫자를 그리는 플러그인을 Chart.js에 등록
         Chart.register(ChartDataLabels);
-
         const { useState, useEffect, useMemo, useRef } = React;
 
-        // --- 아이콘 컴포넌트 ---
         const Icon = ({ name, size = 18, className = "" }) => {
             const icons = {
                 Upload: <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4m4-5 5-5 5 5m-5-5v12"/>,
@@ -117,19 +114,6 @@
                         <line x1="12" y1="8" x2="12.01" y2="8"/>
                     </React.Fragment>
                 ),
-                Edit: (
-                    <React.Fragment>
-                        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
-                        <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
-                    </React.Fragment>
-                ),
-                BarChart: (
-                    <React.Fragment>
-                        <line x1="18" y1="20" x2="18" y2="10"/>
-                        <line x1="12" y1="20" x2="12" y2="4"/>
-                        <line x1="6" y1="20" x2="6" y2="14"/>
-                    </React.Fragment>
-                ),
                 Database: (
                     <React.Fragment>
                         <ellipse cx="12" cy="5" rx="9" ry="3"/>
@@ -139,33 +123,19 @@
                 )
             };
             return (
-                <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    width={size}
-                    height={size}
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    className={`${className} ${name === 'Loader2' ? 'animate-spin' : ''}`}
-                >
+                <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={`${className} ${name === 'Loader2' ? 'animate-spin' : ''}`}>
                     {icons[name] || icons['Info']}
                 </svg>
             );
         };
 
-        // --- 분석용 차트 컴포넌트 1: 총점 ---
         const ComboChart = ({ data, labels, title, lineLabel, barLabel, lineColor, barColor, maxScore = 100 }) => {
             const chartRef = useRef(null);
             const chartInstance = useRef(null);
 
             useEffect(() => {
                 if (!chartRef.current) return;
-                if (chartInstance.current) {
-                    chartInstance.current.destroy();
-                }
+                if (chartInstance.current) chartInstance.current.destroy();
                 
                 const ctx = chartRef.current.getContext('2d');
                 chartInstance.current = new Chart(ctx, {
@@ -174,67 +144,23 @@
                         labels: labels,
                         datasets: [
                             {
-                                type: 'line',
-                                label: lineLabel,
-                                data: data,
-                                borderColor: lineColor,
-                                backgroundColor: lineColor,
-                                borderWidth: 3,
-                                tension: 0.3,
-                                pointBackgroundColor: '#fff',
-                                pointBorderColor: lineColor,
-                                pointBorderWidth: 2,
-                                pointRadius: 5,
-                                pointHoverRadius: 7,
-                                datalabels: { display: false }
+                                type: 'line', label: lineLabel, data: data, borderColor: lineColor, backgroundColor: lineColor, borderWidth: 3, tension: 0.3, pointBackgroundColor: '#fff', pointBorderColor: lineColor, pointBorderWidth: 2, pointRadius: 5, pointHoverRadius: 7, datalabels: { display: false }
                             },
                             {
-                                type: 'bar',
-                                label: barLabel,
-                                data: data,
-                                backgroundColor: barColor,
-                                borderRadius: 8,
-                                barThickness: 'flex',
-                                maxBarThickness: 35, 
-                                datalabels: { 
-                                    display: true, 
-                                    anchor: 'end', 
-                                    align: 'top', 
-                                    offset: 4,
-                                    color: '#334155', 
-                                    font: { weight: 'black', size: 13, family: 'Pretendard' },
-                                    formatter: (value) => {
-                                        return Math.round(value * 10) / 10;
-                                    }
-                                }
+                                type: 'bar', label: barLabel, data: data, backgroundColor: barColor, borderRadius: 8, barThickness: 'flex', maxBarThickness: 35, 
+                                datalabels: { display: true, anchor: 'end', align: 'top', offset: 4, color: '#334155', font: { weight: 'black', size: 13, family: 'Pretendard' }, formatter: (value) => Math.round(value * 10) / 10 }
                             }
                         ]
                     },
-                    options: {
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        layout: { padding: { top: 30 } },
-                        plugins: {
-                            legend: { display: false },
-                            title: { display: true, text: title, font: { size: 16, family: 'Pretendard', weight: '900' }, color: '#1e293b', padding: { bottom: 20 } },
-                            tooltip: { mode: 'index', intersect: false, backgroundColor: 'rgba(15, 23, 42, 0.9)', titleFont: { size: 14 }, bodyFont: { size: 14, weight: 'bold' }, padding: 12, cornerRadius: 8 }
-                        },
-                        scales: {
-                            y: { beginAtZero: true, max: maxScore, grid: { color: '#f1f5f9' }, ticks: { font: { weight: 'bold' } } },
-                            x: { grid: { display: false }, ticks: { font: { weight: 'bold' }, color: '#64748b' } }
-                        }
-                    }
+                    options: { responsive: true, maintainAspectRatio: false, layout: { padding: { top: 30 } }, plugins: { legend: { display: false }, title: { display: true, text: title, font: { size: 16, family: 'Pretendard', weight: '900' }, color: '#1e293b', padding: { bottom: 20 } }, tooltip: { mode: 'index', intersect: false, backgroundColor: 'rgba(15, 23, 42, 0.9)', titleFont: { size: 14 }, bodyFont: { size: 14, weight: 'bold' }, padding: 12, cornerRadius: 8 } }, scales: { y: { beginAtZero: true, max: maxScore, grid: { color: '#f1f5f9' }, ticks: { font: { weight: 'bold' } } }, x: { grid: { display: false }, ticks: { font: { weight: 'bold' }, color: '#64748b' } } } }
                 });
 
-                return () => {
-                    if (chartInstance.current) chartInstance.current.destroy();
-                };
+                return () => { if (chartInstance.current) chartInstance.current.destroy(); };
             }, [data, labels, title, lineLabel, barLabel, lineColor, barColor, maxScore]);
 
             return <div className="w-full h-80"><canvas ref={chartRef}></canvas></div>;
         };
 
-        // --- 차트 컴포넌트 2: 새로운 그룹 바 차트 (만점 대비 획득 점수 비교용) ---
         const GroupedBarChart = ({ data1, data2, labels, title, label1, label2, color1, color2 }) => {
             const chartRef = useRef(null);
             const chartInstance = useRef(null);
@@ -244,66 +170,30 @@
                 if (chartInstance.current) chartInstance.current.destroy();
                 
                 const maxVal = Math.max(...data2, 10); 
-
                 const ctx = chartRef.current.getContext('2d');
                 chartInstance.current = new Chart(ctx, {
                     type: 'bar',
                     data: {
                         labels: labels,
                         datasets: [
-                            {
-                                label: label1,
-                                data: data1,
-                                backgroundColor: color1,
-                                borderRadius: 6,
-                                barPercentage: 0.8,
-                                categoryPercentage: 0.8,
-                                maxBarThickness: 35, 
-                                datalabels: { display: true, anchor: 'end', align: 'top', color: color1, font: { weight: 'bold', size: 11 } }
-                            },
-                            {
-                                label: label2,
-                                data: data2,
-                                backgroundColor: color2,
-                                borderRadius: 6,
-                                barPercentage: 0.8,
-                                categoryPercentage: 0.8,
-                                maxBarThickness: 35, 
-                                datalabels: { display: true, anchor: 'end', align: 'top', color: '#94a3b8', font: { weight: 'bold', size: 11 } }
-                            }
+                            { label: label1, data: data1, backgroundColor: color1, borderRadius: 6, barPercentage: 0.8, categoryPercentage: 0.8, maxBarThickness: 35, datalabels: { display: true, anchor: 'end', align: 'top', color: color1, font: { weight: 'bold', size: 11 } } },
+                            { label: label2, data: data2, backgroundColor: color2, borderRadius: 6, barPercentage: 0.8, categoryPercentage: 0.8, maxBarThickness: 35, datalabels: { display: true, anchor: 'end', align: 'top', color: '#94a3b8', font: { weight: 'bold', size: 11 } } }
                         ]
                     },
-                    options: {
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        layout: { padding: { top: 30 } },
-                        plugins: {
-                            legend: { display: true, position: 'bottom', labels: { font: { family: 'Pretendard', weight: 'bold' } } },
-                            title: { display: true, text: title, font: { size: 16, family: 'Pretendard', weight: '900' }, color: '#1e293b', padding: { bottom: 20 } },
-                            tooltip: { mode: 'index', intersect: false, backgroundColor: 'rgba(15, 23, 42, 0.9)', titleFont: { size: 14 }, bodyFont: { size: 14, weight: 'bold' }, padding: 12, cornerRadius: 8 }
-                        },
-                        scales: {
-                            y: { beginAtZero: true, max: maxVal + (maxVal * 0.1), grid: { color: '#f1f5f9' }, ticks: { font: { weight: 'bold' } } },
-                            x: { grid: { display: false }, ticks: { font: { weight: 'bold' }, color: '#64748b' } }
-                        }
-                    }
+                    options: { responsive: true, maintainAspectRatio: false, layout: { padding: { top: 30 } }, plugins: { legend: { display: true, position: 'bottom', labels: { font: { family: 'Pretendard', weight: 'bold' } } }, title: { display: true, text: title, font: { size: 16, family: 'Pretendard', weight: '900' }, color: '#1e293b', padding: { bottom: 20 } }, tooltip: { mode: 'index', intersect: false, backgroundColor: 'rgba(15, 23, 42, 0.9)', titleFont: { size: 14 }, bodyFont: { size: 14, weight: 'bold' }, padding: 12, cornerRadius: 8 } }, scales: { y: { beginAtZero: true, max: maxVal + (maxVal * 0.1), grid: { color: '#f1f5f9' }, ticks: { font: { weight: 'bold' } } }, x: { grid: { display: false }, ticks: { font: { weight: 'bold' }, color: '#64748b' } } } }
                 });
 
-                return () => {
-                    if (chartInstance.current) chartInstance.current.destroy();
-                };
+                return () => { if (chartInstance.current) chartInstance.current.destroy(); };
             }, [data1, data2, labels, title, label1, label2, color1, color2]);
 
             return <div className="w-full h-80"><canvas ref={chartRef}></canvas></div>;
         };
 
-        // --- 모달 컴포넌트 ---
         const Modal = ({ message, type, onClose }) => {
             if (!message) return null;
             const bgColor = type === 'error' ? 'bg-red-50' : 'bg-emerald-50';
             const textColor = type === 'error' ? 'text-red-800' : 'text-emerald-800';
             const iconColor = type === 'error' ? 'text-red-400' : 'text-emerald-400';
-            
             return (
                 <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/20 backdrop-blur-sm animate-in">
                     <div className={`${bgColor} border border-white max-w-sm w-full p-6 rounded-3xl shadow-2xl flex flex-col items-center text-center gap-4`}>
@@ -315,20 +205,17 @@
             );
         };
 
-        // --- 🚨 주관식 및 객관식 수정 통합 모달 컴포넌트 ---
         const EditModal = ({ result, examData, onSave, onClose }) => {
             const [localName, setLocalName] = useState(result.name === "이름 입력 필요" ? "" : result.name);
             const [localSchool, setLocalSchool] = useState(result.school || "");
             const [localInfo, setLocalInfo] = useState(result.info || "");
 
-            // 기존 주관식 데이터 로드
             const [localSubScores, setLocalSubScores] = useState(() => {
                 const initial = [...(Array.isArray(result.subjectiveScores) ? result.subjectiveScores : [])];
                 while(initial.length < examData.subjective.length) initial.push(0);
                 return initial.slice(0, examData.subjective.length);
             });
 
-            // 신규: 객관식 데이터(학생 마킹) 로드
             const [localObjAnswers, setLocalObjAnswers] = useState(() => {
                 const initial = Array(examData.objective.length).fill(0);
                 if (result.details && Array.isArray(result.details)) {
@@ -339,7 +226,6 @@
                 return initial;
             });
 
-            // 객관식 마킹 변경 핸들러
             const updateLocalObjAnswer = (index, value) => {
                 const newAns = [...localObjAnswers];
                 let val = parseInt(value);
@@ -350,7 +236,6 @@
             };
 
             const handleSaveData = () => {
-                // 수정된 객관식 답안을 바탕으로 점수 재계산
                 let newObjScoreSum = 0;
                 const newDetails = localObjAnswers.map((ans, idx) => {
                     const correctAns = examData.objective[idx] || 0;
@@ -358,12 +243,7 @@
                     if (isCorrect && ans !== 0) {
                         newObjScoreSum += parseFloat(examData.objectiveScores[idx]) || 1;
                     }
-                    return {
-                        question: idx + 1,
-                        studentAnswer: ans,
-                        correctAnswer: correctAns,
-                        isCorrect: isCorrect
-                    };
+                    return { question: idx + 1, studentAnswer: ans, correctAnswer: correctAns, isCorrect: isCorrect };
                 });
 
                 const newObjectiveScore = Number(newObjScoreSum.toFixed(1));
@@ -377,88 +257,59 @@
                     objectiveScore: newObjectiveScore,
                     subjectiveScores: localSubScores,
                     totalScore: newTotalScore,
-                    details: newDetails // 새로 계산된 결과 덮어쓰기
+                    details: newDetails
                 });
             };
 
             return (
                 <div className="fixed inset-0 z-40 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md animate-in">
-                    <div className="bg-white max-w-2xl w-full p-6 rounded-[2rem] shadow-2xl flex flex-col gap-4 max-h-[95vh] overflow-hidden border border-slate-100">
-                        <div className="flex justify-between items-center border-b border-slate-100 pb-3">
-                            <h3 className="font-black text-indigo-900 text-xl flex items-center gap-2"><Icon name="Edit" size={22}/> 학생 정보 및 점수 상세 수정</h3>
-                            <button onClick={onClose} className="text-slate-400 hover:text-red-500 transition-colors"><Icon name="X" size={22}/></button>
+                    <div className="bg-white max-w-2xl w-full p-5 rounded-[2rem] shadow-2xl flex flex-col gap-3 max-h-[95vh] overflow-hidden border border-slate-100">
+                        <div className="flex justify-between items-center border-b border-slate-100 pb-2">
+                            <h3 className="font-black text-indigo-900 text-lg flex items-center gap-2"><Icon name="Edit" size={20}/> 학생 정보 및 점수 상세 수정</h3>
+                            <button onClick={onClose} className="text-slate-400 hover:text-red-500 transition-colors"><Icon name="X" size={20}/></button>
                         </div>
                         
-                        <div className="overflow-y-auto pr-3 custom-scrollbar space-y-4">
-                            <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 space-y-2">
-                                <p className="text-xs font-black text-slate-500 uppercase tracking-widest">학생 기본 정보 입력</p>
+                        <div className="overflow-y-auto pr-3 custom-scrollbar space-y-3">
+                            <div className="bg-slate-50 p-3 rounded-2xl border border-slate-100 space-y-1.5">
+                                <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">학생 기본 정보 입력</p>
                                 <div className="flex flex-col sm:flex-row gap-2">
-                                    <input 
-                                        type="text" 
-                                        placeholder="학생 이름" 
-                                        value={localName} 
-                                        onChange={e => setLocalName(e.target.value)}
-                                        className="flex-1 p-2 rounded-xl border border-slate-200 font-black text-indigo-900 outline-none focus:border-indigo-500 transition-colors text-sm"
-                                    />
-                                    <input 
-                                        type="text" 
-                                        placeholder="학교명" 
-                                        value={localSchool} 
-                                        onChange={e => setLocalSchool(e.target.value)}
-                                        className="flex-1 p-2 rounded-xl border border-slate-200 font-bold text-sm text-slate-700 outline-none focus:border-indigo-500 transition-colors"
-                                    />
+                                    <input type="text" placeholder="학생 이름" value={localName} onChange={e => setLocalName(e.target.value)} className="flex-1 p-2 rounded-xl border border-slate-200 font-black text-indigo-900 outline-none focus:border-indigo-500 transition-colors text-sm" />
+                                    <input type="text" placeholder="학교명" value={localSchool} onChange={e => setLocalSchool(e.target.value)} className="flex-1 p-2 rounded-xl border border-slate-200 font-bold text-sm text-slate-700 outline-none focus:border-indigo-500 transition-colors" />
                                 </div>
                             </div>
 
-                            {/* 🚨 객관식 마킹 수정 영역 간격 축소 */}
-                            <div className="bg-white border border-indigo-50 shadow-sm p-4 rounded-2xl space-y-2">
+                            <div className="bg-white border border-indigo-50 shadow-sm p-3 rounded-2xl space-y-1.5">
                                 <div className="flex items-center justify-between mb-1">
-                                    <p className="text-xs font-black text-indigo-500 uppercase tracking-widest flex items-center gap-1">
-                                        <Icon name="List" size={14}/> 객관식 마킹 내역 수정 (오인식 교정)
-                                    </p>
+                                    <p className="text-[10px] font-black text-indigo-500 uppercase tracking-widest flex items-center gap-1"><Icon name="List" size={12}/> 객관식 마킹 내역 수정 (오인식 교정)</p>
                                 </div>
-                                <div className="grid grid-cols-5 sm:grid-cols-10 gap-2 max-h-32 overflow-y-auto pr-2 custom-scrollbar">
+                                <div className="grid grid-cols-5 sm:grid-cols-10 gap-1.5 max-h-32 overflow-y-auto pr-2 custom-scrollbar">
                                     {localObjAnswers.map((ans, idx) => (
-                                        <div key={`edit-obj-${idx}`} className="flex flex-col items-center gap-1">
-                                            <span className="text-[10px] font-black text-slate-400">{idx + 1}번</span>
-                                            <input 
-                                                type="number" min="0" max="5" 
-                                                value={ans === 0 ? "" : ans} 
-                                                placeholder="0" 
-                                                onChange={(e) => updateLocalObjAnswer(idx, e.target.value)} 
-                                                className="w-full border-2 border-slate-100 p-1.5 rounded-lg text-center font-black text-indigo-600 focus:border-indigo-500 outline-none hover:bg-white bg-slate-50 transition-colors shadow-sm" 
-                                            />
+                                        <div key={`edit-obj-${idx}`} className="flex flex-col items-center gap-0.5">
+                                            <span className="text-[9px] font-black text-slate-400">{idx + 1}번</span>
+                                            <input type="number" min="0" max="5" value={ans === 0 ? "" : ans} placeholder="0" onChange={(e) => updateLocalObjAnswer(idx, e.target.value)} className="w-full border-2 border-slate-100 p-1.5 rounded-lg text-center font-black text-indigo-600 focus:border-indigo-500 outline-none hover:bg-white bg-slate-50 transition-colors shadow-sm text-sm" />
                                         </div>
                                     ))}
                                 </div>
                             </div>
                             
-                            <div className="space-y-2">
-                                <p className="text-xs font-black text-pink-500 uppercase tracking-widest mb-2 flex items-center gap-1">
-                                    <Icon name="CheckCircle" size={14}/> 주관식 점수 수정 (제한 초과 방지)
-                                </p>
+                            <div className="space-y-1.5">
+                                <p className="text-[10px] font-black text-pink-500 uppercase tracking-widest mb-1.5 flex items-center gap-1"><Icon name="CheckCircle" size={12}/> 주관식 점수 수정 (제한 초과 방지)</p>
                                 {examData.subjective.length === 0 ? (
-                                    <p className="text-center text-slate-400 font-bold py-4 bg-slate-50 rounded-xl border border-slate-100 text-sm">이 시험지에는 주관식 문항이 없습니다.</p>
+                                    <p className="text-center text-slate-400 font-bold py-3 bg-slate-50 rounded-xl border border-slate-100 text-sm">이 시험지에는 주관식 문항이 없습니다.</p>
                                 ) : (
                                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                                         {examData.subjective.map((maxScore, idx) => (
                                             <div key={idx} className="flex flex-col items-center gap-1 bg-pink-50 p-2 rounded-xl border border-pink-100 transition-colors shadow-sm">
                                                 <span className="font-black text-pink-500 text-[10px]">주관식 {idx + 1}번 <span className="opacity-70">(최대{maxScore}점)</span></span>
                                                 <div className="flex items-center w-full px-1 mt-0.5">
-                                                    <input 
-                                                        type="number" min="0" step="0.1" max={maxScore}
-                                                        value={localSubScores[idx] === 0 ? "" : localSubScores[idx]} 
-                                                        placeholder="0"
-                                                        onChange={(e) => {
+                                                    <input type="number" min="0" step="0.1" max={maxScore} value={localSubScores[idx] === 0 ? "" : localSubScores[idx]} placeholder="0" onChange={(e) => {
                                                             const newScores = [...localSubScores];
                                                             let val = parseFloat(e.target.value);
                                                             if (isNaN(val) || val < 0) val = 0;
-                                                            if (val > maxScore) val = maxScore; // 모달에서도 최대 점수 제한 방어
+                                                            if (val > maxScore) val = maxScore;
                                                             newScores[idx] = val;
                                                             setLocalSubScores(newScores);
-                                                        }}
-                                                        className="w-full border border-white bg-white p-1.5 rounded-md font-black text-pink-600 outline-none focus:border-pink-400 shadow-sm text-center text-sm"
-                                                    />
+                                                        }} className="w-full border border-white bg-white p-1 rounded-md font-black text-pink-600 outline-none focus:border-pink-400 shadow-sm text-center text-sm" />
                                                 </div>
                                             </div>
                                         ))}
@@ -467,12 +318,10 @@
                             </div>
                         </div>
 
-                        {/* 🚨 실시간 재계산 점수 미리보기 크기 및 여백 축소 */}
-                        <div className="flex justify-between items-center p-4 bg-slate-50 border border-slate-100 rounded-2xl">
-                            <span className="font-black text-slate-500 text-sm">저장 시 최종 반영될 총점:</span>
-                            <span className="font-black text-2xl text-indigo-600 bg-white px-4 py-1.5 rounded-xl shadow-sm border border-indigo-50">
+                        <div className="flex justify-between items-center p-3 bg-slate-50 border border-slate-100 rounded-xl mt-1">
+                            <span className="font-black text-slate-500 text-xs">저장 시 최종 반영될 총점:</span>
+                            <span className="font-black text-xl text-indigo-600 bg-white px-3 py-1 rounded-lg shadow-sm border border-indigo-50">
                                 {(() => {
-                                    // 미리보기 계산
                                     let previewObjSum = 0;
                                     localObjAnswers.forEach((ans, idx) => {
                                         if (ans !== 0 && ans === (examData.objective[idx] || 0)) {
@@ -485,9 +334,8 @@
                             </span>
                         </div>
 
-                        {/* 🚨 저장 버튼 슬림화 */}
-                        <button onClick={handleSaveData} className="w-full py-3.5 bg-indigo-600 text-white rounded-2xl font-black text-base shadow-xl shadow-indigo-100 hover:bg-indigo-700 transition-all flex justify-center items-center gap-2">
-                            <Icon name="Save" size={18}/> 변경 내용 저장 및 재채점
+                        <button onClick={handleSaveData} className="w-full py-2.5 bg-indigo-600 text-white rounded-xl font-black text-sm shadow-lg shadow-indigo-100 hover:bg-indigo-700 transition-all flex justify-center items-center gap-2">
+                            <Icon name="Save" size={16}/> 변경 내용 저장 및 재채점
                         </button>
                     </div>
                 </div>
@@ -508,7 +356,6 @@
             const [images, setImages] = useState([]);
             const [results, setResults] = useState([]);
             const [isProcessing, setIsProcessing] = useState(false);
-            
             const [gasUrl, setGasUrl] = useState(() => localStorage.getItem('omr_gas_url') || DEFAULT_GAS_URL); 
             const [userApiKey, setUserApiKey] = useState(() => localStorage.getItem('omr_api_key') || ""); 
 
@@ -529,8 +376,7 @@
             const [manualSubScores, setManualSubScores] = useState([]);
             
             const [answerKeys, setAnswerKeys] = useState(null);
-            const [selectedUnit, setSelectedUnit] = useState("양운중_1학기_중간");
-
+            const [selectedUnit, setSelectedUnit] = useState("기본_시험지");
             const [analysisStudent, setAnalysisStudent] = useState("");
 
             useEffect(() => {
@@ -559,22 +405,50 @@
                 return () => { isMounted = false; };
             }, []);
 
+            // 🚨 안전한 시험지 데이터 생성 (과거 배열/손상 데이터 자동 복원 엔진)
             const safeAnswerKeys = useMemo(() => {
+                const defaultKey = {
+                    "기본_시험지": {
+                        school: "학교미지정",
+                        objective: [1, 2, 3, 4, 5, 1, 2, 3, 4, 5, 1, 2, 3, 4, 5, 1, 2, 3, 4, 5],
+                        objectiveScores: Array(20).fill(1),
+                        subjective: []
+                    }
+                };
+
                 if (!answerKeys || typeof answerKeys !== 'object' || Object.keys(answerKeys).length === 0) {
-                    return {
-                        "기본_시험지": {
-                            school: "학교미지정",
-                            objective: [1, 2, 3, 4, 5, 1, 2, 3, 4, 5, 1, 2, 3, 4, 5, 1, 2, 3, 4, 5],
-                            objectiveScores: Array(20).fill(1),
-                            subjective: []
-                        }
-                    };
+                    return defaultKey;
                 }
-                return answerKeys;
+
+                const validKeys = {};
+                Object.keys(answerKeys).forEach(key => {
+                    const val = answerKeys[key];
+                    if (val && typeof val === 'object' && !Array.isArray(val)) {
+                        validKeys[key] = val;
+                    } else if (Array.isArray(val)) {
+                        // 과거 단순 배열 데이터일 경우 최신 객체 구조로 자동 복구
+                        validKeys[key] = {
+                            school: "",
+                            objective: val,
+                            objectiveScores: Array(val.length).fill(1),
+                            subjective: []
+                        };
+                    }
+                });
+
+                return Object.keys(validKeys).length > 0 ? validKeys : defaultKey;
             }, [answerKeys]);
 
+            // 🚨 렌더링 폭발(Blank Screen) 원천 차단 함수
             const getExamData = (unit) => {
-                const data = safeAnswerKeys[unit] || safeAnswerKeys[Object.keys(safeAnswerKeys)[0]] || {};
+                let data = safeAnswerKeys[unit];
+                if (!data || typeof data !== 'object') {
+                    data = safeAnswerKeys[Object.keys(safeAnswerKeys)[0]];
+                }
+                if (!data || typeof data !== 'object') {
+                    data = {};
+                }
+                
                 let obj = Array.isArray(data.objective) ? data.objective : (Array.isArray(data) ? data : []);
                 if (obj.length === 0) obj = Array(20).fill(0);
                 
@@ -1191,6 +1065,7 @@
                 <div className="min-h-screen flex flex-col items-center p-4 sm:p-8 bg-slate-50">
                     <Modal message={modal.message} type={modal.type} onClose={() => setModal({ message: '', type: '' })} />
                     
+                    {/* 모달 렌더링 영역 */}
                     {editingResultId && results.find(r => r.id === editingResultId) && (
                         <EditModal 
                             result={results.find(r => r.id === editingResultId)}
@@ -1597,7 +1472,7 @@
                                 </div>
                             )}
 
-                            {/* 전체 데이터 관리 탭 */}
+                            {/* 데이터 관리 탭 */}
                             {view === 'data' && (
                                 <div className="space-y-8 animate-in">
                                     <div className="flex flex-col sm:flex-row justify-between items-center gap-4 px-2">
@@ -1683,7 +1558,6 @@
                                                                     {r.timestamp}
                                                                 </td>
                                                                 <td className="py-3 px-3 text-center">
-                                                                    {/* 🚨 데이터 관리 탭에서도 [수정] 모달을 띄울 수 있도록 버튼 추가 */}
                                                                     <button onClick={() => setEditingResultId(r.id)} className="px-3 py-2 rounded-lg text-xs font-black bg-indigo-50 text-indigo-600 border border-indigo-100 hover:bg-indigo-600 hover:text-white transition-all shadow-sm mr-2">
                                                                         상세 수정
                                                                     </button>
@@ -1820,6 +1694,190 @@
                                                 )}
                                             </div>
                                         </>
+                                    )}
+                                </div>
+                            )}
+
+                            {/* 시험지 관리 탭 */}
+                            {view === 'exams' && (
+                                <div className="space-y-10 animate-in">
+                                    <div className="flex justify-between items-center px-2">
+                                        <h2 className="font-black text-3xl text-slate-800 tracking-tighter">시험지 관리</h2>
+                                        {!isAddingExam && (
+                                            <button onClick={() => {
+                                                setEditingExamKey(null);
+                                                setNewExamName("");
+                                                setNewExamSchool("");
+                                                setNewExamLength(20);
+                                                setNewExamAnswers(Array(20).fill(1));
+                                                setNewExamObjScores(Array(20).fill(1));
+                                                setNewExamSubLength(0);
+                                                setNewExamSubScores([]);
+                                                setIsAddingExam(true);
+                                            }} className="bg-indigo-600 text-white px-6 py-4 rounded-2xl text-sm font-black flex items-center gap-2 shadow-xl shadow-indigo-100 hover:bg-indigo-700 transition-all transform active:scale-95">
+                                                <Icon name="Plus" size={20}/> 새 정답지 추가
+                                            </button>
+                                        )}
+                                    </div>
+
+                                    {isAddingExam ? (
+                                        <div className="bg-indigo-50/30 p-10 rounded-[2.5rem] border-2 border-indigo-100 space-y-8 shadow-inner animate-in">
+                                            <div className="flex justify-between items-center border-b border-indigo-100 pb-6">
+                                                <h3 className="font-black text-indigo-900 text-2xl">
+                                                    {editingExamKey ? '정답 데이터 수정' : '새 정답 데이터 등록'}
+                                                </h3>
+                                                <button onClick={() => { setIsAddingExam(false); setEditingExamKey(null); }} className="text-slate-300 hover:text-red-500 transition-colors"><Icon name="X" size={28}/></button>
+                                            </div>
+                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-8">
+                                                <div className="flex flex-col gap-3">
+                                                    <label className="text-xs font-black text-indigo-400 uppercase tracking-[0.2em] ml-2">시험지 이름 입력</label>
+                                                    <input type="text" value={newExamName} onChange={(e) => setNewExamName(e.target.value)} placeholder="시험지 이름 입력" className="border-2 border-white p-5 rounded-2xl outline-none focus:border-indigo-500 shadow-sm font-black bg-white transition-all text-indigo-900" />
+                                                </div>
+                                                <div className="flex flex-col gap-3">
+                                                    <label className="text-xs font-black text-indigo-400 uppercase tracking-[0.2em] ml-2">학교명 (선택)</label>
+                                                    <input type="text" value={newExamSchool} onChange={(e) => setNewExamSchool(e.target.value)} placeholder="학교명 입력" className="border-2 border-white p-5 rounded-2xl outline-none focus:border-indigo-500 shadow-sm font-black bg-white transition-all text-indigo-900" />
+                                                </div>
+                                                <div className="grid grid-cols-2 gap-4">
+                                                    <div className="flex flex-col gap-3">
+                                                        <label className="text-xs font-black text-indigo-400 uppercase tracking-[0.2em] ml-2">객관식 문항 수</label>
+                                                        <input type="number" value={newExamLength} onChange={(e) => handleLengthChange(e.target.value)} min="1" max="100" className="border-2 border-white p-5 rounded-2xl outline-none focus:border-indigo-500 shadow-sm font-black bg-white transition-all text-indigo-900" />
+                                                    </div>
+                                                    <div className="flex flex-col gap-3">
+                                                        <label className="text-xs font-black text-pink-400 uppercase tracking-[0.2em] ml-2">주관식 문항 수</label>
+                                                        <input type="number" value={newExamSubLength} onChange={(e) => handleSubLengthChange(e.target.value)} min="0" max="20" className="border-2 border-white p-5 rounded-2xl outline-none focus:border-pink-500 shadow-sm font-black bg-white transition-all text-pink-900" />
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            
+                                            <div className="bg-white p-6 rounded-[1.5rem] border border-indigo-50 shadow-sm overflow-x-auto custom-scrollbar">
+                                                <div className="flex items-center gap-2 mb-4">
+                                                    <Icon name="Info" size={16} className="text-indigo-400" />
+                                                    <label className="text-xs font-black text-slate-400 uppercase tracking-widest">객관식 정답 및 배점 설정</label>
+                                                </div>
+                                                <div className="min-w-max flex flex-col gap-2">
+                                                    <div className="flex items-center gap-2">
+                                                        <div className="w-16 shrink-0 text-right pr-2 text-[10px] font-black text-slate-400">문항</div>
+                                                        {newExamAnswers.map((_, idx) => (
+                                                            <div key={`q-${idx}`} className="w-12 shrink-0 text-center text-[10px] font-black text-indigo-200">
+                                                                {idx + 1}
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                    <div className="flex items-center gap-2">
+                                                        <div className="w-16 shrink-0 text-right pr-2 text-xs font-black text-indigo-500">정답</div>
+                                                        {newExamAnswers.map((ans, idx) => (
+                                                            <input 
+                                                                key={`a-${idx}`}
+                                                                type="number" min="1" max="5" 
+                                                                value={ans} 
+                                                                onChange={(e) => updateNewAnswer(idx, e.target.value)} 
+                                                                className="w-12 h-11 shrink-0 border-2 border-indigo-50 rounded-xl text-center font-black text-indigo-600 focus:border-indigo-500 outline-none bg-slate-50 hover:bg-white transition-all text-base"
+                                                            />
+                                                        ))}
+                                                    </div>
+                                                    <div className="flex items-center gap-2 mt-1">
+                                                        <div className="w-16 shrink-0 text-right pr-2 text-xs font-black text-rose-400">배점</div>
+                                                        {newExamObjScores.map((score, idx) => (
+                                                            <input 
+                                                                key={`s-${idx}`}
+                                                                type="number" min="0" step="0.1" 
+                                                                value={score} 
+                                                                onChange={(e) => updateNewObjScore(idx, e.target.value)} 
+                                                                className="w-12 h-11 shrink-0 border-2 border-rose-50 rounded-xl text-center font-black text-rose-500 focus:border-rose-400 outline-none bg-slate-50 hover:bg-white transition-all text-sm"
+                                                            />
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            {newExamSubLength > 0 && (
+                                                <div className="bg-pink-50/40 p-8 rounded-[1.5rem] border border-pink-100 space-y-6 shadow-sm animate-in">
+                                                    <div className="flex items-center gap-2">
+                                                        <Icon name="Info" size={16} className="text-pink-400" />
+                                                        <label className="text-xs font-black text-slate-500 uppercase tracking-widest">주관식 배점 설정 (최대 배점 입력)</label>
+                                                    </div>
+                                                    <div className="grid grid-cols-2 sm:grid-cols-5 gap-4 max-h-48 overflow-y-auto pr-4 custom-scrollbar">
+                                                        {newExamSubScores.map((score, idx) => (
+                                                            <div key={idx} className="flex flex-col items-center gap-2 bg-white p-3 rounded-xl border border-pink-50 shadow-sm">
+                                                                <span className="text-[10px] text-pink-300 font-black">주관식 {idx + 1}</span>
+                                                                <div className="flex items-center gap-1 w-full px-2">
+                                                                    <input 
+                                                                        type="number" 
+                                                                        min="1" 
+                                                                        max="100" 
+                                                                        value={score} 
+                                                                        onChange={(e) => updateNewSubScore(idx, e.target.value)} 
+                                                                        className="w-full border-2 border-slate-50 p-2 rounded-lg text-center font-black text-pink-600 focus:border-pink-500 outline-none bg-slate-50 hover:bg-white transition-all text-lg" 
+                                                                    />
+                                                                    <span className="text-xs font-bold text-slate-400">점</span>
+                                                                </div>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                            <button onClick={saveNewExam} className="w-full py-6 bg-indigo-600 text-white rounded-[1.5rem] font-black text-xl shadow-2xl shadow-indigo-100 hover:bg-indigo-700 transition-all flex justify-center items-center gap-4">
+                                                <Icon name="Save" size={24}/> {editingExamKey ? '수정 내용 저장' : '정답지 저장 및 바로 사용'}
+                                            </button>
+                                        </div>
+                                    ) : (
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-8">
+                                            {Object.keys(safeAnswerKeys).map(unit => {
+                                                const examData = getExamData(unit);
+                                                return (
+                                                <div key={unit} className="bg-white p-8 rounded-[2rem] border-2 border-slate-50 shadow-xl flex flex-col gap-6 relative group hover:border-indigo-200 transition-all duration-300">
+                                                    <div className="absolute top-6 right-6 flex gap-2 opacity-0 group-hover:opacity-100 transition-all">
+                                                        <button 
+                                                            onClick={() => {
+                                                                setEditingExamKey(unit);
+                                                                setNewExamName(unit);
+                                                                setNewExamSchool(examData.school);
+                                                                setNewExamLength(examData.objective.length);
+                                                                setNewExamAnswers([...examData.objective]);
+                                                                setNewExamObjScores(examData.objectiveScores ? [...examData.objectiveScores] : Array(examData.objective.length).fill(1));
+                                                                setNewExamSubLength(examData.subjective.length);
+                                                                setNewExamSubScores([...examData.subjective]);
+                                                                setIsAddingExam(true);
+                                                            }} 
+                                                            className="text-slate-300 hover:text-indigo-500 bg-white rounded-full p-2 shadow-md border border-slate-50"
+                                                        >
+                                                            <Icon name="Edit" size={18}/>
+                                                        </button>
+                                                        <button 
+                                                            onClick={() => { if(confirm("삭제하시겠습니까?")) deleteExam(unit); }} 
+                                                            className="text-slate-300 hover:text-red-500 bg-white rounded-full p-2 shadow-md border border-slate-50"
+                                                        >
+                                                            <Icon name="Trash2" size={18}/>
+                                                        </button>
+                                                    </div>
+                                                    <div className="font-black text-2xl text-slate-800 flex items-center gap-4 mt-2">
+                                                        <div className="bg-indigo-50 p-3 rounded-2xl"><Icon name="FileText" size={24} className="text-indigo-500"/></div>
+                                                        <span className="truncate pr-8">{unit}</span>
+                                                    </div>
+                                                    <div className="bg-slate-50 p-5 rounded-2xl border border-slate-100">
+                                                        <p className="text-[10px] text-slate-300 font-black uppercase mb-3 tracking-[0.2em]">Objective Map Overview</p>
+                                                        <div className="text-[12px] text-slate-500 font-mono tracking-tighter leading-relaxed break-all line-clamp-2">
+                                                            {Array.isArray(examData.objective) ? examData.objective.join(' ') : '데이터 없음'}
+                                                        </div>
+                                                    </div>
+                                                    <div className="flex justify-between items-center pt-2">
+                                                        <div className="flex gap-2">
+                                                            <span className="text-xs font-black bg-indigo-50 text-indigo-600 px-4 py-1.5 rounded-full border border-indigo-100">객관식 {examData.objective.length}</span>
+                                                            {examData.subjective.length > 0 && (
+                                                                <span className="text-xs font-black bg-pink-50 text-pink-600 px-4 py-1.5 rounded-full border border-pink-100">주관식 {examData.subjective.length}</span>
+                                                            )}
+                                                        </div>
+                                                        <button 
+                                                            onClick={() => { setSelectedUnit(unit); setView('upload'); }} 
+                                                            className="text-xs font-black text-slate-400 hover:text-indigo-600 flex items-center gap-2 transition-all group-hover:translate-x-1"
+                                                        >
+                                                            선택 <Icon name="ChevronRight" size={16}/>
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            )})}
+                                        </div>
                                     )}
                                 </div>
                             )}

@@ -250,8 +250,9 @@
                 const newSubScoreSum = localSubScores.reduce((a, b) => a + (parseFloat(b) || 0), 0);
                 const newTotalScore = newObjectiveScore + newSubScoreSum;
 
+                // 🚨 수정 모달에서 저장할 때도 띄어쓰기를 싹 제거하여 저장합니다.
                 onSave(result.id, {
-                    name: localName || "미입력 학생",
+                    name: (localName || "미입력 학생").replace(/\s+/g, ''),
                     school: localSchool,
                     info: localInfo,
                     objectiveScore: newObjectiveScore,
@@ -345,11 +346,13 @@
         const DEFAULT_API_KEY = ""; 
         const DEFAULT_GAS_URL = "https://script.google.com/macros/s/AKfycbyZmXOgSDqZDQRFFhsHRTvyQEq7Ire2d6g34yOwLkPOyPqE-67Ydxb9Au0zpWWsOAhs/exec"; 
 
+        // 🚨 띄어쓰기 원천 차단: 파일명에서 추출할 때도 공백 모두 제거
         const extractStudentName = (fileName) => {
             if (!fileName) return "이름 입력 필요";
             const fileNameWithoutExt = fileName.replace(/\.[^/.]+$/, "");
             const nameParts = fileNameWithoutExt.split(/[._-]/); 
-            return nameParts[nameParts.length - 1].trim() || "이름 입력 필요";
+            const cleanName = nameParts[nameParts.length - 1].replace(/\s+/g, '');
+            return cleanName || "이름 입력 필요";
         };
 
         const App = () => {
@@ -405,50 +408,22 @@
                 return () => { isMounted = false; };
             }, []);
 
-            // 🚨 안전한 시험지 데이터 생성 (과거 배열/손상 데이터 자동 복원 엔진)
             const safeAnswerKeys = useMemo(() => {
-                const defaultKey = {
-                    "기본_시험지": {
-                        school: "학교미지정",
-                        objective: [1, 2, 3, 4, 5, 1, 2, 3, 4, 5, 1, 2, 3, 4, 5, 1, 2, 3, 4, 5],
-                        objectiveScores: Array(20).fill(1),
-                        subjective: []
-                    }
-                };
-
                 if (!answerKeys || typeof answerKeys !== 'object' || Object.keys(answerKeys).length === 0) {
-                    return defaultKey;
-                }
-
-                const validKeys = {};
-                Object.keys(answerKeys).forEach(key => {
-                    const val = answerKeys[key];
-                    if (val && typeof val === 'object' && !Array.isArray(val)) {
-                        validKeys[key] = val;
-                    } else if (Array.isArray(val)) {
-                        // 과거 단순 배열 데이터일 경우 최신 객체 구조로 자동 복구
-                        validKeys[key] = {
-                            school: "",
-                            objective: val,
-                            objectiveScores: Array(val.length).fill(1),
+                    return {
+                        "기본_시험지": {
+                            school: "학교미지정",
+                            objective: [1, 2, 3, 4, 5, 1, 2, 3, 4, 5, 1, 2, 3, 4, 5, 1, 2, 3, 4, 5],
+                            objectiveScores: Array(20).fill(1),
                             subjective: []
-                        };
-                    }
-                });
-
-                return Object.keys(validKeys).length > 0 ? validKeys : defaultKey;
+                        }
+                    };
+                }
+                return answerKeys;
             }, [answerKeys]);
 
-            // 🚨 렌더링 폭발(Blank Screen) 원천 차단 함수
             const getExamData = (unit) => {
-                let data = safeAnswerKeys[unit];
-                if (!data || typeof data !== 'object') {
-                    data = safeAnswerKeys[Object.keys(safeAnswerKeys)[0]];
-                }
-                if (!data || typeof data !== 'object') {
-                    data = {};
-                }
-                
+                const data = safeAnswerKeys[unit] || safeAnswerKeys[Object.keys(safeAnswerKeys)[0]] || {};
                 let obj = Array.isArray(data.objective) ? data.objective : (Array.isArray(data) ? data : []);
                 if (obj.length === 0) obj = Array(20).fill(0);
                 
@@ -858,9 +833,10 @@
                     const parsedSchool = examData.school || selectedUnit.split(/[ _]/)[0];
                     const resultId = encodeURIComponent(`${manualStudentName}_${selectedUnit}`).replace(/[.#$[\]\s]/g, '_');
                     
+                    // 🚨 직접 입력 시에도 띄어쓰기 완전 제거 후 저장
                     const resultObj = {
                         id: resultId,
-                        name: manualStudentName, 
+                        name: manualStudentName.replace(/\s+/g, ''), 
                         school: parsedSchool,
                         info: "",
                         unit: selectedUnit,
@@ -1013,7 +989,11 @@
                 }
             };
 
-            const uniqueStudents = useMemo(() => Array.from(new Set(results.map(r => r.name))).filter(Boolean), [results]);
+            // 🚨 드롭다운 목록 생성 시 띄어쓰기 전부 박멸하여 통일된 이름만 뽑아냄
+            const uniqueStudents = useMemo(() => {
+                const names = results.map(r => r.name ? r.name.replace(/\s+/g, '') : "").filter(Boolean);
+                return Array.from(new Set(names));
+            }, [results]);
             
             useEffect(() => {
                 if (view === 'analysis') {
@@ -1022,7 +1002,11 @@
             }, [view, uniqueStudents, analysisStudent]);
 
             const studentChartData = useMemo(() => {
-                const data = results.filter(r => r.name === analysisStudent).sort((a,b) => new Date(a.timestamp) - new Date(b.timestamp));
+                if (!analysisStudent) return null;
+                // 🚨 필터링 시에도 띄어쓰기를 무시하고 동일인물로 간주하여 차트에 병합
+                const targetName = analysisStudent.replace(/\s+/g, '');
+                const data = results.filter(r => r.name && r.name.replace(/\s+/g, '') === targetName).sort((a,b) => new Date(a.timestamp) - new Date(b.timestamp));
+                
                 return {
                     labels: data.map(d => d.unit),
                     totalScores: data.map(d => d.totalScore),
@@ -1472,7 +1456,7 @@
                                 </div>
                             )}
 
-                            {/* 데이터 관리 탭 */}
+                            {/* 전체 데이터 관리 탭 */}
                             {view === 'data' && (
                                 <div className="space-y-8 animate-in">
                                     <div className="flex flex-col sm:flex-row justify-between items-center gap-4 px-2">
@@ -1993,7 +1977,8 @@
 
             fetchedResults.push({
               id: docSnap.id,
-              name: data.studentName || data.name || "이름 없음",
+              // 🚨 파이어베이스에서 불러올 때 공백 원천 제거
+              name: (data.studentName || data.name || "이름 없음").replace(/\s+/g, ''),
               school: data.school || "",
               info: data.info || "",
               unit: data.examUnit || data.unit || "",
@@ -2051,17 +2036,6 @@
               console.error("Firebase Delete Error:", error);
               throw error;
           }
-      };
-
-      window.deleteAllResultsInFirebase = async () => {
-        try {
-          const querySnapshot = await getDocs(collection(db, "haeun_omr_data"));
-          querySnapshot.forEach((docSnap) => {
-            deleteDoc(doc(db, "haeun_omr_data", docSnap.id));
-          });
-        } catch (error) {
-          console.error("Firebase 전체 삭제 실패:", error);
-        }
       };
 
       window.fetchExamsFromFirebase = async () => {
